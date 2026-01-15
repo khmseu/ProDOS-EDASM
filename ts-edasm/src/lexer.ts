@@ -62,7 +62,7 @@ export class Lexer {
     }
 
     // Number
-    if (this.isDigit(ch) || (ch === "$" && this.isHexDigit(this.peekNext()))) {
+    if (this.isDigit(ch) || (ch === "$" && this.isHexDigit(this.peekNext())) || (ch === "@" && this.isOctalDigit(this.peekNext()))) {
       return this.scanNumber();
     }
 
@@ -163,6 +163,12 @@ export class Lexer {
       while (this.isHexDigit(this.peek())) {
         this.advance();
       }
+    } else if (this.peek() === "@") {
+      // Octal number (@xxxx)
+      this.advance();
+      while (this.isOctalDigit(this.peek())) {
+        this.advance();
+      }
     } else if (
       this.peek() === "%" ||
       (this.peek() === "0" && this.peekNext() === "b")
@@ -245,6 +251,10 @@ export class Lexer {
     return (
       this.isDigit(ch) || (ch >= "a" && ch <= "f") || (ch >= "A" && ch <= "F")
     );
+  }
+
+  private isOctalDigit(ch: string): boolean {
+    return ch >= "0" && ch <= "7";
   }
 
   private isAlphaNumeric(ch: string): boolean {

@@ -6,6 +6,8 @@ import {
   Expression,
 } from "./types.js";
 import { getOpcode, isDirective } from "./opcodes.js";
+import * as fs from "fs";
+import * as path from "path";
 
 // Two-pass assembler for EDASM compatibility
 export function assemble(
@@ -15,8 +17,83 @@ export function assemble(
   const parser = new Parser(source);
   const { statements } = parser.parse();
 
-  const assembler = new Assembler(statements, options);
-  return assembler.assemble();
+  // Expand INCLUDE directives
+  const basePath = options.basePath || '.';
+  const includeErrors: string[] = [];
+  const expandedStatements = expandIncludes(statements, basePath, new Set(), includeErrors);
+
+  const assembler = new Assembler(expandedStatements, options);
+  const result = assembler.assemble();
+  
+  // Add include errors to the result if any
+  if (includeErrors.length > 0) {
+    result.errors = [...(result.errors || []), ...includeErrors];
+  }
+  
+  return result;
+}
+
+// Recursively expand INCLUDE directives
+function expandIncludes(
+  statements: Statement[],
+  basePath: string,
+  visitedFiles: Set<string>,
+  errors: string[],
+): Statement[] {
+  const expanded: Statement[] = [];
+
+  for (const stmt of statements) {
+    if (stmt.directive?.toUpperCase() === "INCLUDE") {
+      // Get the filename from the operand
+      if (stmt.operand && stmt.operand.kind === "symbol") {
+        let filename = stmt.operand.name;
+        
+        // Remove quotes if present
+        if ((filename.startsWith('"') && filename.endsWith('"')) ||
+            (filename.startsWith("'") && filename.endsWith("'"))) {
+          filename = filename.slice(1, -1);
+        }
+
+        // Resolve path relative to base path
+        const fullPath = path.isAbsolute(filename) 
+          ? filename 
+          : path.resolve(basePath, filename);
+
+        // Check for circular includes
+        if (visitedFiles.has(fullPath)) {
+          errors.push(`Circular include detected: ${fullPath}`);
+          continue;
+        }
+
+        // Read and parse the included file
+        try {
+          const includedSource = fs.readFileSync(fullPath, "utf-8");
+          const includedParser = new Parser(includedSource);
+          const { statements: includedStatements } = includedParser.parse();
+
+          // Mark this file as visited
+          const newVisited = new Set(visitedFiles);
+          newVisited.add(fullPath);
+
+          // Recursively expand includes in the included file
+          const includedBasePath = path.dirname(fullPath);
+          const expandedIncluded = expandIncludes(includedStatements, includedBasePath, newVisited, errors);
+
+          // Add the expanded statements
+          expanded.push(...expandedIncluded);
+        } catch (error) {
+          // Include failed - record error for debugging
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          errors.push(`Failed to include file ${fullPath}: ${errorMsg}`);
+        }
+      }
+    } else {
+      // Not an INCLUDE directive, keep the statement
+      expanded.push(stmt);
+    }
+  }
+
+  return expanded;
 }
 
 class Assembler {
@@ -52,6 +129,7 @@ class Assembler {
       bytes: new Uint8Array(this.bytes),
       listing,
       symbols: this.symbols,
+      errors: this.errors.length > 0 ? this.errors : undefined,
     };
   }
 

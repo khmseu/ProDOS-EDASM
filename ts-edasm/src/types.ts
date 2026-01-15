@@ -85,10 +85,12 @@ export interface AssemblerOptions {
   listing?: boolean;
   relocatable?: boolean;
   msbDefaultOn?: boolean;
+  basePath?: string; // Base path for resolving INCLUDE directives
 }
 
 export interface AssemblyArtifact {
   bytes: Uint8Array;
   listing?: string;
   symbols: Record<string, number>;
+  errors?: string[]; // Optional error messages from assembly
 }
