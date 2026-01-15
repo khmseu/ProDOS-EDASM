@@ -37,6 +37,7 @@ export type AddressingMode =
   | "absolute-x"
   | "absolute-y"
   | "indirect"
+  | "indirect-x"
   | "indirect-y"
   | "jmp-indirect";
 
