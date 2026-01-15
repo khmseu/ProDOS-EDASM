@@ -93,16 +93,19 @@ export class Parser {
       !this.check("comment") &&
       !this.check("eof")
     ) {
-      // Special handling for EXTRN and ENTRY directives which take comma-separated symbol lists
+      // Special handling for directives that take comma-separated lists
       const directiveUpper = directive.toUpperCase();
       if (directiveUpper === "EXTRN" || directiveUpper === "EXT" || directiveUpper === "EXTN" ||
-          directiveUpper === "ENTRY" || directiveUpper === "ENT") {
+          directiveUpper === "ENTRY" || directiveUpper === "ENT" ||
+          directiveUpper === "DB" || directiveUpper === "DFB" ||
+          directiveUpper === "DW" || directiveUpper === "DA" ||
+          directiveUpper === "DDB") {
         // For these directives, collect all tokens until EOL/comment
         // Don't try to parse as expression since commas will cause issues
         while (!this.check("eol") && !this.check("comment") && !this.check("eof")) {
           statementTokens.push(this.advance());
         }
-        // Create a dummy operand - the assembler will extract symbols from tokens
+        // Create a dummy operand - the assembler will extract values from tokens
         operand = { kind: "symbol", name: "", pos: startPos };
       } else {
         const result = this.parseExpression();
