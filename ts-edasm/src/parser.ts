@@ -275,6 +275,13 @@ export class Parser {
       return { kind: "symbol", name: token.lexeme, pos: token.pos };
     }
 
+    // Program counter reference (*) - treated as special symbol
+    if (this.check("operator") && this.currentToken().lexeme === "*") {
+      const token = this.advance();
+      tokens.push(token);
+      return { kind: "symbol", name: "*", pos: token.pos };
+    }
+
     // Unary operators (< for low byte, > for high byte)
     if (
       this.check("operator") &&
