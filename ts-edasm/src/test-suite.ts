@@ -198,6 +198,133 @@ FIELD2  DS 4
 `,
     expected: [0xad, 0x00, 0x10, 0xad, 0x02, 0x10], // FIELD1=$1000, FIELD2=$1002
   },
+  {
+    name: "Macro system - simple macro with parameters",
+    source: `
+        ORG $1000
+STORE   MACRO
+        LDA #&1
+        STA &2
+        ENDM
+        STORE $42,$2000
+        RTS
+`,
+    expected: [0xa9, 0x42, 0x8d, 0x00, 0x20, 0x60], // LDA #$42, STA $2000, RTS
+  },
+  {
+    name: "Macro system - parameter count with &X",
+    source: `
+        ORG $2000
+TEST    MACRO
+        LDA #&X
+        ENDM
+        TEST $10,$20,$30
+        RTS
+`,
+    expected: [0xa9, 0x03, 0x60], // LDA #3 (three parameters), RTS
+  },
+  {
+    name: "Macro system - &0 for label generation",
+    source: `
+        ORG $3000
+LOOP    MACRO
+&0      LDA #$00
+        BNE &0
+        ENDM
+        LOOP START
+        RTS
+`,
+    expected: [0xa9, 0x00, 0xd0, 0xfc, 0x60], // LDA #$00, BNE -4, RTS
+  },
+  {
+    name: "Relocatable output - REL mode basic",
+    source: `
+        REL
+        ORG $4000
+START   LDA #$00
+        STA BUFFER
+        RTS
+BUFFER  DS 1
+`,
+    expected: [0xa9, 0x00, 0x8d, 0x06, 0x40, 0x60, 0x00], // LDA #0, STA $4006 (BUFFER), RTS, DS 1
+  },
+  {
+    name: "Relocatable output - EXTRN symbols",
+    source: `
+        REL
+        ORG $5000
+        EXTRN PRINT
+START   JSR PRINT
+        RTS
+`,
+    expected: [0x20, 0x00, 0x00, 0x60], // JSR $0000 (external), RTS
+  },
+  {
+    name: "Relocatable output - ENTRY points",
+    source: `
+        REL
+        ORG $6000
+        ENTRY MAIN,HELPER
+MAIN    LDA #$01
+        RTS
+HELPER  LDA #$02
+        RTS
+`,
+    expected: [0xa9, 0x01, 0x60, 0xa9, 0x02, 0x60], // Two routines
+  },
+  {
+    name: "Indexed-indirect (zp,X) addressing",
+    source: `
+        ORG $8000
+ZPTR    EQU $80
+        LDA ($80,X)
+        STA (ZPTR,X)
+`,
+    expected: [0xa1, 0x80, 0x81, 0x80], // LDA ($80,X), STA ($80,X)
+  },
+  {
+    name: "Indirect-indexed (zp),Y addressing",
+    source: `
+        ORG $9000
+ZPTR    EQU $90
+        LDA ($90),Y
+        STA (ZPTR),Y
+`,
+    expected: [0xb1, 0x90, 0x91, 0x90], // LDA ($90),Y, STA ($90),Y
+  },
+  {
+    name: "Program counter reference (*)",
+    source: `
+        ORG $A000
+HERE    EQU *
+        LDA HERE
+        STA HERE+1
+`,
+    expected: [0xad, 0x00, 0xa0, 0x8d, 0x01, 0xa0], // LDA $A000, STA $A001
+  },
+  {
+    name: "Octal constants (@)",
+    source: `
+        ORG $B000
+        LDA #@377
+        STA @20
+`,
+    expected: [0xa9, 0xff, 0x85, 0x10], // LDA #$FF (@377), STA $10 (@20)
+  },
+  {
+    name: "Multiple macro calls",
+    source: `
+        ORG $D000
+LOAD    MACRO
+        LDA #&1
+        ENDM
+        LOAD $11
+        LOAD $22
+        LOAD $33
+        RTS
+`,
+    expected: [0xa9, 0x11, 0xa9, 0x22, 0xa9, 0x33, 0x60], // Three LDA instructions, RTS
+  },
 ];
 
 console.log("Running EDASM assembler test suite...\n");

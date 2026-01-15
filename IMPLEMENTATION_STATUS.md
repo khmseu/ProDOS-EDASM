@@ -28,7 +28,7 @@ This document analyzes the differences between the TypeScript implementation (ts
 - **Decimal Constants**: Default numeric format
 - **Hexadecimal**: `$` prefix (e.g., `$FF`)
 - **Octal**: `@` prefix (e.g., `@777`) ✅
-- **Binary**: `%` prefix and `0b` prefix (e.g., `%10101010`, `0b10101010`)
+- **Binary**: `%` prefix - ❌ **NOT YET WORKING** (parser issue)
 - **String Constants**: Single-quoted strings
 - **Operators**: `+`, `-`, `*`, `/` with left-to-right evaluation
 - **Low/High Byte**: `<` and `>` operators
