@@ -144,21 +144,31 @@ All core features now have comprehensive test coverage:
 - **test_pc_reference.mjs** - Program counter (*) reference ✅ All tests passing
 - **test_comprehensive.mjs** - Combined PC reference and indexed-indirect ✅ All tests passing
 
+### Tests Recently Completed (2026-01-15) ✅
+
+- **test_listing_format.mjs** - Enhanced listing format (field widths, expression results, multi-line continuation)
+  - Status: ✅ **IMPLEMENTED** - All features working
+  - Field widths: PC:5, Code:12, ER/Cycles:3, Line#:5 ✅
+  - Expression results in 3-char field ✅
+  - Suppressed assembly indicator 'S' ✅
+  - Multi-line continuation for >4 bytes ✅
+  
+- **test_listing_control.mjs** - Listing control directives (LST, PAGE, SKP, REP, CHR, SBTL)
+  - Status: ✅ **IMPLEMENTED** - All directives working
+  - LST ON/OFF ✅
+  - PAGE (form feed) ✅
+  - SKP (blank lines) ✅
+  - REP (repeated character) ✅
+  - CHR (set repeat character) ✅
+  - SBTL (subtitle) ✅
+
 ### Tests for Future Implementation 📋
 
 Documentation tests that specify expected behavior for features not yet implemented:
-
-- **test_listing_format.mjs** - Expected listing format (field widths, expression results, cycle timing)
-  - Status: ⚠️ Partially implemented, needs enhancement
-  - Priority: HIGH
-  
-- **test_listing_control.mjs** - Listing control directives (LST, PAGE, SKP, REP, CHR, SBTL)
-  - Status: ⚠️ LST ON/OFF partially working, others not implemented
-  - Priority: MEDIUM
   
 - **test_macro_system.mjs** - Macro definition and expansion (MACRO, ENDM, &0-&9, &X)
   - Status: ❌ Not implemented (tests document expected behavior)
-  - Priority: LOW (complex feature)
+  - Priority: MEDIUM (complex but useful feature)
   
 - **test_relocatable.mjs** - Relocatable output (REL, EXTRN, ENTRY, RLD, ESD)
   - Status: ❌ Not implemented (tests document expected behavior)
