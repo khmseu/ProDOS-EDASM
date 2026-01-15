@@ -91,6 +91,14 @@ This document analyzes the differences between the TypeScript implementation (ts
 - **CHR**: ✅ Implemented (set repeat character) 
 - **SBTL**: ✅ Implemented (subtitle)
 
+#### Relocatable Output
+
+- **REL**: ✅ Relocatable mode fully implemented
+- **EXTRN**: ✅ External symbol declarations implemented
+- **ENTRY**: ✅ Entry point declarations implemented
+- **Relocation Dictionary (RLD)**: ✅ Generated for all absolute addresses
+- **External Symbol Directory (ESD)**: ✅ Tracked via externals and entries arrays
+
 ### ⚠️ Partially Implemented / Needs Enhancement
 
 (None currently)
@@ -102,14 +110,6 @@ This document analyzes the differences between the TypeScript implementation (ts
 - **CHN**: Chain source file - **NOT IMPLEMENTED**
 - **MACLIB**: Macro library file - **NOT IMPLEMENTED**
 - **PAUSE**: Manual disk swap - **NOT IMPLEMENTED**
-
-#### Relocatable Output
-
-- **REL**: Relocatable mode - **NOT IMPLEMENTED**
-- **EXTRN**: External symbols - **NOT IMPLEMENTED**
-- **ENTRY**: Entry points for linking - **NOT IMPLEMENTED**
-- **Relocation Dictionary (RLD)**: Not generated
-- **External Symbol Directory (ESD)**: Not generated
 
 #### Macro System
 
@@ -183,11 +183,11 @@ Need tests for:
 
 ## Summary (Updated 2026-01-15)
 
-The implementation successfully supports program counter references (`*`), indexed-indirect addressing modes, and now includes **enhanced listing format** and **all listing control directives**. The main remaining gaps are:
+The implementation successfully supports program counter references (`*`), indexed-indirect addressing modes, **enhanced listing format**, **all listing control directives**, and **relocatable output**. The main remaining gap is:
 
-1. **Relocatable output**: REL/EXTRN/ENTRY system not implemented
+1. ~~**Relocatable output**: REL/EXTRN/ENTRY system not implemented~~ ✅ **COMPLETED**
 2. **Macro system**: Complete macro support missing
 3. ~~**Listing enhancements**: Format needs refinement to match spec exactly~~ ✅ **COMPLETED**
 4. ~~**Advanced directives**: CHN, MACLIB, PAGE, SKP, REP, CHR, SBTL not implemented~~ ✅ **Listing directives COMPLETED**
 
-The implementation successfully assembles most EdAsm source files including complex patterns like `EQU *` and `(zp,X)` addressing. It is suitable for many assembly tasks but needs additional features for full compatibility with the EdAsm toolchain, particularly relocatable output and macro support.
+The implementation successfully assembles most EdAsm source files including complex patterns like `EQU *` and `(zp,X)` addressing. It now supports relocatable output with REL/EXTRN/ENTRY directives and generates a Relocation Dictionary (RLD) for linking. The primary remaining feature for full compatibility with the EdAsm toolchain is macro support.

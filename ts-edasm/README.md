@@ -21,6 +21,9 @@ TypeScript reimplementation of the EDASM assembler from the PRODOS Assembler Too
 - **INCLUDE directive for file inclusion with nesting**
 - **Program counter (*) as expression value**
 - **Indexed-indirect (zp,X) addressing mode**
+- **Enhanced listing format with proper field widths**
+- **Listing control directives (LST, PAGE, SKP, REP, CHR, SBTL)**
+- **Relocatable output (REL, EXTRN, ENTRY with RLD generation)**
 
 ## Usage
 
@@ -148,6 +151,20 @@ All 6502 instructions with appropriate addressing modes:
 **Output Control:**
 - MSB: Control high bit for ASCII output (MSB ON/OFF)
 
+**Listing Control:**
+- LST: Enable/disable listing output (LST ON/OFF)
+- PAGE: Page eject in listing
+- SKP: Insert blank lines in listing
+- REP: Repeated character line
+- CHR: Set repeat character
+- SBTL: Subtitle in listing
+
+**Relocatable Output:**
+- REL: Enable relocatable mode for linking
+- EXTRN: Declare external symbols (comma-separated list)
+- ENTRY: Declare entry points (comma-separated list)
+- Relocation Dictionary (RLD) generation for linker
+
 **File Operations:**
 - INCLUDE: Include another source file at current position (supports nesting)
 
@@ -179,17 +196,29 @@ All 6502 instructions with appropriate addressing modes:
 
 ## Next steps
 
-1. Implement enhanced listing format (proper field widths, expression results, cycle timing)
-2. Add support for more control directives (PAGE, SKP, REP, CHR, SBTL)
+1. ~~Implement enhanced listing format (proper field widths, expression results, cycle timing)~~ ✅ COMPLETED
+2. ~~Add support for more control directives (PAGE, SKP, REP, CHR, SBTL)~~ ✅ COMPLETED
 3. ~~Implement file directives (INCLUDE, MACLIB, CHN)~~ ✅ INCLUDE implemented
-4. Add relocatable output format (REL mode with RLD)
+4. ~~Add relocatable output format (REL mode with RLD)~~ ✅ COMPLETED
 5. Implement macro expansion support
-6. Add EXTRN/ENTRY support for external symbols
+6. ~~Add EXTRN/ENTRY support for external symbols~~ ✅ COMPLETED
 7. Add fixtures/tests using samples from ASM sources to verify compatibility
 
 ## Recent Updates
 
-### 2026-01-15
+### 2026-01-15 (Latest)
+- ✅ **Implemented relocatable output system**
+  - REL directive enables relocatable mode
+  - EXTRN directive for external symbol declarations (comma-separated lists)
+  - ENTRY directive for entry point declarations (comma-separated lists)
+  - Relocation Dictionary (RLD) generation for absolute addresses
+  - All relocatable tests passing (4/4)
+- ✅ Modified parser to handle comma-separated symbol lists for EXTRN/ENTRY
+- ✅ Enhanced AssemblyArtifact with relocatable, rld, externals, and entries fields
+
+### 2026-01-15 (Earlier)
+- ✅ Added enhanced listing format with proper field widths
+- ✅ Implemented listing control directives (LST, PAGE, SKP, REP, CHR, SBTL)
 - ✅ Added octal constant support (@prefix for numbers like @777)
 - ✅ Implemented INCLUDE directive with recursive file inclusion
 - ✅ Added circular include detection
