@@ -27,6 +27,7 @@ class Assembler {
   private conditionalStack: boolean[] = []; // Stack for tracking conditional assembly state
   private assemblyEnabled: boolean = true; // Whether we're currently assembling
   private msbOn: boolean = false; // MSB setting for ASCII output (default OFF for compatibility)
+  private inDsect: boolean = false; // Whether we're inside a DSECT block
 
   constructor(
     private readonly statements: Statement[],
@@ -157,6 +158,16 @@ class Assembler {
           this.pc += count;
         }
         break;
+      
+      case "DSECT":
+        // Start data section - defines structure without emitting bytes
+        this.inDsect = true;
+        break;
+      
+      case "DEND":
+        // End data section
+        this.inDsect = false;
+        break;
 
       case "ASC":
       case "DCI":
@@ -227,6 +238,16 @@ class Assembler {
             this.emitByte(0);
           }
         }
+        break;
+      
+      case "DSECT":
+        // Start data section - defines structure without emitting bytes
+        this.inDsect = true;
+        break;
+      
+      case "DEND":
+        // End data section
+        this.inDsect = false;
         break;
 
       case "ASC":
@@ -459,7 +480,10 @@ class Assembler {
   }
 
   private emitByte(value: number): void {
-    this.bytes.push(value & 0xff);
+    // In DSECT mode, don't emit bytes but still increment PC
+    if (!this.inDsect) {
+      this.bytes.push(value & 0xff);
+    }
     this.pc++;
   }
 

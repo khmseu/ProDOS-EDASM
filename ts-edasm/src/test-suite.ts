@@ -172,6 +172,32 @@ VALUE   EQU $FF
 `,
     expected: [0x41, 0xc2], // 'A' without high bit, 'B' with high bit
   },
+  {
+    name: "DSECT/DEND - structure definition without bytes",
+    source: `
+        ORG $F000
+        LDA #$01
+STRUCT  DSECT
+FIELD1  DS 2
+FIELD2  DS 4
+        DEND
+        LDA #$02
+`,
+    expected: [0xa9, 0x01, 0xa9, 0x02], // Only the LDA instructions, no DS bytes
+  },
+  {
+    name: "DSECT/DEND - labels get correct addresses",
+    source: `
+        ORG $1000
+STRUCT  DSECT
+FIELD1  DS 2
+FIELD2  DS 4
+        DEND
+        LDA FIELD1
+        LDA FIELD2
+`,
+    expected: [0xad, 0x00, 0x10, 0xad, 0x02, 0x10], // FIELD1=$1000, FIELD2=$1002
+  },
 ];
 
 console.log("Running EDASM assembler test suite...\n");
