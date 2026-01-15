@@ -76,6 +76,14 @@ export class Lexer {
       return this.scanIdentifier();
     }
 
+    // Macro parameters (&0-&9, &X)
+    if (ch === "&") {
+      const next = this.peekNext();
+      if ((next >= "0" && next <= "9") || next === "X" || next === "x") {
+        return this.scanMacroParameter();
+      }
+    }
+
     // Operators and punctuation
     switch (ch) {
       case "+":
@@ -145,6 +153,25 @@ export class Lexer {
     }
 
     return { kind, lexeme, pos: startPos };
+  }
+
+  private scanMacroParameter(): Token {
+    const start = this.pos;
+    const startPos = this.currentPos();
+
+    // Consume &
+    this.advance();
+    
+    // Consume digit or X
+    if (this.peek() === "X" || this.peek() === "x") {
+      this.advance();
+    } else if (this.peek() >= "0" && this.peek() <= "9") {
+      this.advance();
+    }
+
+    const lexeme = this.source.substring(start, this.pos);
+    // Treat macro parameters as labels (symbol references) for now
+    return { kind: "label", lexeme, pos: startPos };
   }
 
   private scanNumber(): Token {

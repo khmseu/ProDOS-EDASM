@@ -95,6 +95,13 @@ export interface RelocationEntry {
   size: number; // Size of value (1 or 2 bytes)
 }
 
+// Macro definition
+export interface MacroDefinition {
+  name: string; // Macro name (from label on MACRO line)
+  body: Statement[]; // Statements in macro body
+  pos: SourcePosition; // Position of MACRO directive
+}
+
 export interface AssemblyArtifact {
   bytes: Uint8Array;
   listing?: string;
