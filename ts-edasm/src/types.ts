@@ -98,7 +98,7 @@ export interface RelocationEntry {
 // Macro definition
 export interface MacroDefinition {
   name: string; // Macro name (from label on MACRO line)
-  body: Statement[]; // Statements in macro body
+  bodyLines: string[]; // Source lines in macro body (unparsed text)
   pos: SourcePosition; // Position of MACRO directive
 }
 

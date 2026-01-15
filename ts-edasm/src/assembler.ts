@@ -15,7 +15,10 @@ export function assemble(
   source: string,
   options: AssemblerOptions = {},
 ): AssemblyArtifact {
-  const parser = new Parser(source);
+  // Pre-process macros at the text level before parsing
+  const { sourceWithoutMacros, macros } = extractAndExpandMacros(source);
+  
+  const parser = new Parser(sourceWithoutMacros);
   const { statements } = parser.parse();
 
   // Expand INCLUDE directives
@@ -23,13 +26,7 @@ export function assemble(
   const includeErrors: string[] = [];
   const expandedStatements = expandIncludes(statements, basePath, new Set(), includeErrors);
 
-  // Collect macro definitions and remove them from statements
-  const { macros, statementsWithoutMacros } = collectMacros(expandedStatements);
-  
-  // Expand macro calls
-  const finalStatements = expandMacros(statementsWithoutMacros, macros);
-
-  const assembler = new Assembler(finalStatements, options);
+  const assembler = new Assembler(expandedStatements, options);
   const result = assembler.assemble();
   
   // Add include errors to the result if any
@@ -38,6 +35,110 @@ export function assemble(
   }
   
   return result;
+}
+
+// Extract macro definitions and expand macro calls at the text level
+function extractAndExpandMacros(source: string): { sourceWithoutMacros: string; macros: Map<string, MacroDefinition> } {
+  const lines = source.split('\n');
+  const macros = new Map<string, MacroDefinition>();
+  const outputLines: string[] = [];
+  
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    
+    // Check if this line starts a macro definition
+    // Format: LABEL   MACRO
+    const macroMatch = line.match(/^(\w+)\s+(MACRO|MAC)\s*(?:;.*)?$/i);
+    
+    if (macroMatch) {
+      const macroName = macroMatch[1].toUpperCase();
+      const bodyLines: string[] = [];
+      const startLine = i;
+      
+      // Skip the MACRO line
+      i++;
+      
+      // Collect lines until ENDM
+      while (i < lines.length) {
+        const bodyLine = lines[i];
+        const bodyTrimmed = bodyLine.trim().toUpperCase();
+        
+        if (bodyTrimmed === 'ENDM' || bodyTrimmed === 'EOM' || bodyTrimmed.startsWith('ENDM ') || bodyTrimmed.startsWith('EOM ')) {
+          // Found end of macro
+          i++; // Skip ENDM line
+          break;
+        }
+        
+        bodyLines.push(bodyLine);
+        i++;
+      }
+      
+      // Store the macro
+      macros.set(macroName, {
+        name: macroName,
+        bodyLines,
+        pos: { line: startLine + 1, column: 1 },
+      });
+    } else {
+      // Check if this line is a macro call
+      // Format: [label]   MACRONAME [args...]
+      const callMatch = line.match(/^(\w+)?\s+(\w+)(.*)$/);
+      
+      if (callMatch) {
+        const label = callMatch[1] || '';
+        const possibleMacro = callMatch[2].toUpperCase();
+        const argsText = callMatch[3];
+        
+        if (macros.has(possibleMacro)) {
+          // This is a macro call!
+          const macro = macros.get(possibleMacro)!;
+          
+          // Parse arguments (comma-separated)
+          const args: string[] = [];
+          if (argsText.trim()) {
+            // Simple argument parsing - split by comma
+            const argsPart = argsText.split(';')[0]; // Remove comments
+            args.push(...argsPart.split(',').map(a => a.trim()).filter(a => a));
+          }
+          
+          // Expand the macro body
+          for (const bodyLine of macro.bodyLines) {
+            let expandedLine = bodyLine;
+            
+            // Substitute &0 (first argument, used for labels)
+            if (args.length > 0) {
+              expandedLine = expandedLine.replace(/&0/g, args[0]);
+            }
+            
+            // Substitute &X (parameter count)
+            expandedLine = expandedLine.replace(/&X/gi, args.length.toString());
+            
+            // Substitute &1-&9 (arguments, 1-indexed)
+            for (let paramNum = 1; paramNum <= 9; paramNum++) {
+              const pattern = new RegExp(`&${paramNum}`, 'g');
+              const value = paramNum <= args.length ? args[paramNum - 1] : '';
+              expandedLine = expandedLine.replace(pattern, value);
+            }
+            
+            outputLines.push(expandedLine);
+          }
+          
+          i++;
+          continue;
+        }
+      }
+      
+      // Not a macro definition or call, keep the line
+      outputLines.push(line);
+      i++;
+    }
+  }
+  
+  return {
+    sourceWithoutMacros: outputLines.join('\n'),
+    macros,
+  };
 }
 
 // Recursively expand INCLUDE directives
@@ -101,189 +202,6 @@ function expandIncludes(
   }
 
   return expanded;
-}
-
-// Collect macro definitions from statements
-function collectMacros(statements: Statement[]): { macros: Map<string, MacroDefinition>; statementsWithoutMacros: Statement[] } {
-  const macros = new Map<string, MacroDefinition>();
-  const statementsWithoutMacros: Statement[] = [];
-  let i = 0;
-
-  while (i < statements.length) {
-    const stmt = statements[i];
-    const directive = stmt.directive?.toUpperCase();
-
-    // Check if this is a MACRO directive
-    if ((directive === "MACRO" || directive === "MAC") && stmt.label) {
-      const macroName = stmt.label;
-      const macroBody: Statement[] = [];
-      const macroPos = stmt.pos;
-      
-      // Skip the MACRO directive itself
-      i++;
-
-      // Collect statements until ENDM
-      while (i < statements.length) {
-        const bodyStmt = statements[i];
-        const bodyDirective = bodyStmt.directive?.toUpperCase();
-        
-        if (bodyDirective === "ENDM" || bodyDirective === "EOM") {
-          // Found end of macro
-          i++; // Skip the ENDM directive
-          break;
-        }
-        
-        macroBody.push(bodyStmt);
-        i++;
-      }
-
-      // Store the macro definition
-      macros.set(macroName, {
-        name: macroName,
-        body: macroBody,
-        pos: macroPos,
-      });
-    } else {
-      // Not a macro definition, keep the statement
-      statementsWithoutMacros.push(stmt);
-      i++;
-    }
-  }
-
-  return { macros, statementsWithoutMacros };
-}
-
-// Expand macro calls in statements
-function expandMacros(statements: Statement[], macros: Map<string, MacroDefinition>): Statement[] {
-  const expanded: Statement[] = [];
-
-  for (const stmt of statements) {
-    let isMacroCall = false;
-    let macroName: string | undefined;
-    let macroArgs: string[] = [];
-    let macroLabel: string | undefined;
-    
-    // Check if this is a macro call
-    // Case 1: stmt.opcode matches a macro name (shouldn't happen with current lexer, but check anyway)
-    if (stmt.opcode && macros.has(stmt.opcode)) {
-      isMacroCall = true;
-      macroName = stmt.opcode;
-      macroLabel = stmt.label;
-    }
-    // Case 2: statement has no opcode/directive, just a label-like identifier that matches a macro
-    // This handles cases where the lexer tokenized the macro call as a "label" token
-    else if (!stmt.opcode && !stmt.directive) {
-      // Check if any token in the statement matches a macro name
-      for (const token of stmt.tokens) {
-        if (token.kind === "label" && macros.has(token.lexeme.toUpperCase())) {
-          isMacroCall = true;
-          macroName = token.lexeme.toUpperCase();
-          break;
-        }
-      }
-    }
-    
-    if (isMacroCall && macroName) {
-      const macro = macros.get(macroName)!;
-      
-      // Extract macro arguments from tokens
-      // Arguments are comma-separated values following the macro name
-      let foundMacroName = false;
-      let currentArg = "";
-      
-      for (const token of stmt.tokens) {
-        // Skip until we find the macro name token
-        if (!foundMacroName) {
-          if (token.kind === "label" && token.lexeme.toUpperCase() === macroName) {
-            foundMacroName = true;
-          }
-          continue;
-        }
-        
-        // After macro name, collect arguments
-        if (token.kind === "comma") {
-          if (currentArg.trim()) {
-            macroArgs.push(currentArg.trim());
-          }
-          currentArg = "";
-        } else if (token.kind !== "eol" && token.kind !== "eof" && token.kind !== "comment") {
-          currentArg += token.lexeme;
-        }
-      }
-      
-      // Add the last argument if any
-      if (currentArg.trim()) {
-        macroArgs.push(currentArg.trim());
-      }
-      
-      // Expand the macro body with parameter substitution
-      for (const macroStmt of macro.body) {
-        const expandedStmt = substituteParameters(macroStmt, macroLabel || "", macroArgs);
-        expanded.push(expandedStmt);
-      }
-    } else {
-      // Not a macro call, keep the statement as is
-      expanded.push(stmt);
-    }
-  }
-
-  return expanded;
-}
-
-// Substitute parameters in a macro statement
-function substituteParameters(stmt: Statement, labelParam: string, args: string[]): Statement {
-  // Create a copy of the statement
-  const newStmt: Statement = {
-    ...stmt,
-    tokens: [...stmt.tokens],
-  };
-
-  // Substitute label (&0)
-  if (newStmt.label && newStmt.label.includes("&0")) {
-    newStmt.label = newStmt.label.replace(/&0/g, labelParam);
-  }
-
-  // Substitute in operand if it's a symbol
-  if (newStmt.operand && newStmt.operand.kind === "symbol") {
-    let name = newStmt.operand.name;
-    
-    // Substitute &X (parameter count)
-    name = name.replace(/&X/g, args.length.toString());
-    
-    // Substitute &1-&9
-    for (let i = 1; i <= 9; i++) {
-      const pattern = new RegExp(`&${i}`, "g");
-      const argValue = i <= args.length ? args[i - 1] : "";
-      name = name.replace(pattern, argValue);
-    }
-    
-    // Substitute &0 (label parameter)
-    name = name.replace(/&0/g, labelParam);
-    
-    newStmt.operand = {
-      ...newStmt.operand,
-      name,
-    };
-  }
-
-  // Substitute in opcode if present
-  if (newStmt.opcode) {
-    let opcode = newStmt.opcode;
-    
-    // Substitute &X (parameter count)
-    opcode = opcode.replace(/&X/g, args.length.toString());
-    
-    // Substitute &1-&9
-    for (let i = 1; i <= 9; i++) {
-      const pattern = new RegExp(`&${i}`, "g");
-      const argValue = i <= args.length ? args[i - 1] : "";
-      opcode = opcode.replace(pattern, argValue);
-    }
-    
-    newStmt.opcode = opcode;
-  }
-
-  return newStmt;
 }
 
 // Information about each line for listing generation
