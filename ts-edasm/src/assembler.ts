@@ -6,6 +6,8 @@ import {
   Expression,
 } from "./types.js";
 import { getOpcode, isDirective } from "./opcodes.js";
+import * as fs from "fs";
+import * as path from "path";
 
 // Two-pass assembler for EDASM compatibility
 export function assemble(
@@ -15,8 +17,72 @@ export function assemble(
   const parser = new Parser(source);
   const { statements } = parser.parse();
 
-  const assembler = new Assembler(statements, options);
+  // Expand INCLUDE directives
+  const basePath = options.basePath || '.';
+  const expandedStatements = expandIncludes(statements, basePath, new Set());
+
+  const assembler = new Assembler(expandedStatements, options);
   return assembler.assemble();
+}
+
+// Recursively expand INCLUDE directives
+function expandIncludes(
+  statements: Statement[],
+  basePath: string,
+  visitedFiles: Set<string>,
+): Statement[] {
+  const expanded: Statement[] = [];
+
+  for (const stmt of statements) {
+    if (stmt.directive?.toUpperCase() === "INCLUDE") {
+      // Get the filename from the operand
+      if (stmt.operand && stmt.operand.kind === "symbol") {
+        let filename = stmt.operand.name;
+        
+        // Remove quotes if present
+        if ((filename.startsWith('"') && filename.endsWith('"')) ||
+            (filename.startsWith("'") && filename.endsWith("'"))) {
+          filename = filename.slice(1, -1);
+        }
+
+        // Resolve path relative to base path
+        const fullPath = path.isAbsolute(filename) 
+          ? filename 
+          : path.resolve(basePath, filename);
+
+        // Check for circular includes
+        if (visitedFiles.has(fullPath)) {
+          // Skip circular includes silently in production
+          continue;
+        }
+
+        // Read and parse the included file
+        try {
+          const includedSource = fs.readFileSync(fullPath, "utf-8");
+          const includedParser = new Parser(includedSource);
+          const { statements: includedStatements } = includedParser.parse();
+
+          // Mark this file as visited
+          const newVisited = new Set(visitedFiles);
+          newVisited.add(fullPath);
+
+          // Recursively expand includes in the included file
+          const includedBasePath = path.dirname(fullPath);
+          const expandedIncluded = expandIncludes(includedStatements, includedBasePath, newVisited);
+
+          // Add the expanded statements
+          expanded.push(...expandedIncluded);
+        } catch (error) {
+          // Include failed - skip silently in production, could add error tracking
+        }
+      }
+    } else {
+      // Not an INCLUDE directive, keep the statement
+      expanded.push(stmt);
+    }
+  }
+
+  return expanded;
 }
 
 class Assembler {

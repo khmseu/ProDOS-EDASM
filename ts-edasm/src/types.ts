@@ -85,6 +85,7 @@ export interface AssemblerOptions {
   listing?: boolean;
   relocatable?: boolean;
   msbDefaultOn?: boolean;
+  basePath?: string; // Base path for resolving INCLUDE directives
 }
 
 export interface AssemblyArtifact {
