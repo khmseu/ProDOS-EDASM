@@ -129,6 +129,7 @@ class Assembler {
       bytes: new Uint8Array(this.bytes),
       listing,
       symbols: this.symbols,
+      errors: this.errors.length > 0 ? this.errors : undefined,
     };
   }
 

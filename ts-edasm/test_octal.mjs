@@ -46,7 +46,7 @@ if (result2.bytes) {
     console.log("  ❌ FAIL\n");
   }
 } else {
-  console.log("  ❌ FAIL - No bytes generated");
+  console.log("  ❌ FAIL - No bytes generated\n");
 }
 
 // Test 3: Octal in expressions
@@ -69,7 +69,7 @@ if (result3.bytes) {
     console.log("  ❌ FAIL\n");
   }
 } else {
-  console.log("  ❌ FAIL - No bytes generated");
+  console.log("  ❌ FAIL - No bytes generated\n");
 }
 
 // Test 4: Octal 777 (max valid 3-digit octal)
@@ -90,7 +90,7 @@ if (result4.bytes) {
     console.log("  ❌ FAIL\n");
   }
 } else {
-  console.log("  ❌ FAIL - No bytes generated");
+  console.log("  ❌ FAIL - No bytes generated\n");
 }
 
 console.log("Octal constant testing complete!");
