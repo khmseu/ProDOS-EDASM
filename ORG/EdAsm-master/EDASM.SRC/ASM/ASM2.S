@@ -5,6 +5,23 @@ It is meant for viewing purposes only.
 
             ORG    $7800
             REP    50
+;=================================================
+; EDASM ASSEMBLER - MAIN ENGINE
+;
+; This is the resident portion that stays at $7800-$9EFF
+; Contains the two-pass assembly engine, expression
+; evaluator, and symbol table management
+;
+; Two-Pass Assembly Process:
+;   Pass 1: Build symbol table, collect labels,
+;           mark forward references
+;   Pass 2: Generate object code, resolve addresses,
+;           create relocation dictionary for REL files
+;
+; Symbol Table: Hash-based with 128-entry header table
+; Each entry uses variable-length names with link chains
+; for collision resolution
+;=================================================
 ; EdAsm Interpreter will transfer control here
 ;
 Assembler   EQU    *               ;ENTRY
@@ -17,13 +34,24 @@ ColdStrt    JMP    ExecAsm
 ;
 DateStr     ASC    '30-APR-85      22:46'
 ;
+; Apple II RESET key handler - returns to monitor
 ResetEnt    JSR    GoMon           ;Comes here when Apple RESET key is pressed
 ;
-ExecAsm     JSR    SaveZP
+;=================================================
+; MAIN ASSEMBLY EXECUTION
+;
+; Orchestrates the complete assembly process:
+; 1. Save zero page ($60-$F1) for restoration later
+; 2. Initialize assembler state and open files
+; 3. Execute two-pass assembly
+; 4. Clean up and output symbol table
+; 5. Restore environment and return to interpreter
+;=================================================
+ExecAsm     JSR    SaveZP          ;Preserve ZP $60-$F1
             TSX
             STX    EIStack         ;Save EdAsm Interpreter's H/W stack
             SEI                    ;Disable H/W interrupts
-            JSR    SetupVec
+            JSR    SetupVec        ;Patch SOFTEV for RESET handling
             JSR    InitASM
             JSR    DoPass1
             JSR    DoPass2
@@ -1017,6 +1045,21 @@ NotAlfa     RTS
 ; Source code handling, lexical
 ; syntactic and semantic analysis
 ;
+;=================================================
+; PASS 1: SYMBOL TABLE CONSTRUCTION
+;
+; Scans source code and builds symbol table
+; - Parses labels and adds to hash table
+; - Marks forward references (labels used before defined)
+; - Processes EQU directives
+; - Handles conditional assembly (IF/ELSE/FIN)
+; - Tracks ENTRY/EXTERN declarations
+;
+; CondAsmF state machine:
+;   $00 = Normal assembly
+;   $40 = Skip until ELSE (false IF condition)
+;   $80 = Skip until FIN (in alternate block)
+;=================================================
 DoPass1     LDA    #0
             STA    RelCodeF
             STA    SymNbr          ;# of ENTRY/EXTRN
@@ -1166,6 +1209,18 @@ L7F04       JSR    NextRec         ;Adv to next src line record
             JMP    Pass1Lup
             REP    50
 ;
+;=================================================
+; PASS 2: CODE GENERATION
+;
+; Re-scans source and generates object code
+; - Resolves all symbol addresses (no forward refs)
+; - Generates machine code opcodes
+; - Creates relocation dictionary for REL files
+; - Produces listing output if requested
+; - Handles dummy sections (DSECT/DEND)
+;
+; GenF flags: Bit 7=suppress code gen, Bit 6=output to disk
+;=================================================
 DoPass2     INC    PassNbr         ;Flag we are in 2nd pass
             LDA    #'*'
             STA    RepChar
@@ -1998,15 +2053,21 @@ doRet5      RTS
 L8327       DB     $04,$0C,$14,$1A,$1C,$34,$3C,$3A,$5A
             DB     $64,$74,$7A,$80,$89,$9C,$9E,$DA,$FA
 ;=================================================
-; Process mnemonic/pseudo opcode field
-; Ret
-; $AB) - 1st flag byte if not a directive
-;      - may be changed to $83 if data directives
-;      - $80 if macro invocation
-; (A)=($AB)
-; C=0 - succ
-; C=1 - fail
+; MNEMONIC/DIRECTIVE HANDLER
 ;
+; Parses and dispatches mnemonic/directive processing
+; Uses a sophisticated table lookup mechanism:
+; 1. First letter indexes into Tbl1stLet (26 entries A-Z)
+; 2. Subsequent chars compared with table entries
+; 3. When match found, uses RTS trick to jump to handler
+;
+; The "RTS trick": Pushes handler address-1 onto stack,
+; then RTS jumps to handler. This saves code space vs JSR.
+;
+; Returns:
+;   (A) = ($AB) = flag byte for instruction type
+;   C=0 success, C=1 error
+;=================================================
 HndlMnem    LDA    #$80
             STA    ZAB
             JSR    ChrGot
@@ -2361,19 +2422,26 @@ L8530       LDX    #$34            ;invalid delimiter
             RTS
             REP    50
 ;
-; This subrtn will parse the addressing mode of the
-; operand of a 6502 mnemonic/SW16 psuedo opcode
-; Ret
-;  (A)=index (0-12) use to get addr mode fr a table
-;  C=0 - succ
-;  C=1 - syntax error
+;=================================================
+; ADDRESSING MODE PARSER
 ;
-; To trace this rtn, re-assemble the code by doing
-; an ORG $5800 for the tables and code @ $D000 (ASM1.S)
-; Under the EI interpreter, xload EDASM.ASM2,A$5800
-; xload bugbyter,a$1000
-; Enter MONitor and type 1000G
+; Parses operand to determine addressing mode
+; Uses finite state machine with two tables:
+;   AModTkns: Pattern tokens to match (chars with MSB set)
+;   AModCmds: Commands for state transitions
 ;
+; Recognizes patterns like:
+;   #$nn       -> immediate
+;   $nn        -> zero page or absolute
+;   $nn,X/Y    -> indexed
+;   ($nn),Y    -> indirect indexed
+;   ($nn,X)    -> indexed indirect
+;   ($nnnn)    -> indirect (65C02/JMP)
+;
+; Returns:
+;   (A) = mode index (0-12) for opcode table lookup
+;   C=0 success, C=1 syntax error
+;=================================================
 GAdrMod     LDX    #0              ;X=index into the 2 tables
             LDY    #0              ;Position @ start of operand
 L853B       JSR    ChrGot          ;Y=index into operand text
@@ -2537,27 +2605,31 @@ Is65C02     BIT    X6502F          ;Are X6502 opcodes allowed?
             BPL    L85DD           ;always
             REP    50
 ;
-; Evaluate expressions. No check for numeric overflow
-; Support for +,-,;,/ and bitwise AND ^, OR |,EOR !
-; Ref pg 89 for Expression Syntax adopted for Assembler
+;=================================================
+; EXPRESSION EVALUATOR
 ;
-; Expression := [byteopr] Term [opr Term]...]
-; byteopr   := >, <
+; Recursive descent parser for assembly expressions
+; Supports operators: +, -, *, /, &(AND), |(OR), !(XOR)
+; Byte operators: > (high byte), < (low byte)
 ;
-; Meaning of:
-; ExprAccF - Expression's accumulated flag bits
-; NxtToken - Use to chk for eo expr(sp/cr), comma, )
-;            Error if -ve
-; SavSEF   - prev subexpr's RelExprF
-; RelExprF - non-zero if subexpr is evaluated fr a relocatable addr
-;          - zero, it's fr an abs addr
-; Ret
-; (A)=
-; C=0 - no errors parsing
-; C=1 - err during eval
+; Grammar:
+;   Expression := [byteopr] Term [opr Term]*
+;   byteopr := > | <
 ;
-; NB. If relocatable code is generated, only +,- can be used
+; Handles:
+; - Absolute vs relocatable expressions
+; - 16-bit arithmetic with overflow checking
+; - Forward references (symbols not yet defined)
+; - EXTERN symbols (defined in other modules)
 ;
+; For relocatable code, only + and - operators allowed
+;
+; Returns:
+;   ValExpr = computed value
+;   ExprAccF = accumulated flag bits
+;   RelExprF = non-zero if result is relocatable
+;   C=0 success, C=1 error
+;=================================================
 EvalExpr    LDA    #$00
             STA    RelExprF        ;Assume expr's val is absolute not relative
             STA    ExprAccF
@@ -3082,18 +3154,28 @@ ExprEOR     LDA    Accum
             RTS
             REP    50
 ;
-; Part of symbol table handler
-; ($88C3) Find the key
-; HeaderT-table of ptrs to singly list of keys with same hash value
-; Ret:
-;   C=1 - Symbol not in table
-;   (Y)=0
-;   C=0 - Symbol in table
-;   (A) = flag byte
-;   (Y)-indexing lobyte value field/indexing next char of src line
+;=================================================
+; SYMBOL TABLE LOOKUP
 ;
-; PrvSymP would be set correctly for existing chains
+; Finds a symbol in the hash-based symbol table
+; Uses 128-entry HeaderT array where each entry points
+; to a singly-linked list of symbols with same hash
 ;
+; Symbol node structure:
+;   [link ptr (2)] [name (var, MSB set on last char)]
+;   [flag byte (1)] [value (2)]
+;
+; Flag byte bits:
+;   Bit 7: undefined (1) or defined (0)
+;   Bit 6: unreferenced
+;   Bit 4: EXTERN declaration
+;   Bit 3: ENTRY declaration
+;   Bit 0: forward reference
+;
+; Returns:
+;   C=1: Symbol not found
+;   C=0: Symbol found, (A)=flag byte, (Y)=index to value
+;=================================================
 FindSym     JSR    HashFn          ;Hash the label
             LDY    HeaderT+1,X     ;(X)=hashed value x 2
             BEQ    L8908           ;Empty slot => Not Found!
@@ -3153,16 +3235,28 @@ L891A       CLC                    ;Flag symbolic name found
             RTS                    ; or 1st char in next src line?
             REP    50
 ;
-; HashFn
-; The Header Table can have at most 128 entries. Each
-; entry is a 2-byte pointer (called a HEADER NODE) to a
-; singly linked list of nodes (chain of nodes).
-; Only the first 3 chars of a symbolic name are used
-; by this hashing function.
-; Ret:
-; Y - preserved
-; (X)=8-bit value which is used to index HeaderT
+;=================================================
+; HASH FUNCTION
 ;
+; Generates hash index (0-127) from symbol name
+; Uses first 3 chars of symbol name for hashing
+; Each HeaderT entry points to collision chain
+;
+; Algorithm:
+; - 1-char labels: Use bits 0-4 of char, shifted left 2
+; - Multi-char labels: Use bits from first 3 chars:
+;   * Char 1: bits 0-1
+;   * Char 2: bits 0-2
+;   * Char 3: bits 0-2
+;   Combined with shifts/rotates to produce 7-bit hash
+;
+; This gives 128 hash buckets (2^7), balancing memory
+; usage vs collision rate for typical symbol tables
+;
+; Returns:
+;   (X) = hash index * 2 (for word array indexing)
+;   (Y) preserved
+;=================================================
 HashFn      TYA
             PHA                    ;save (Y)
             LDA    #0

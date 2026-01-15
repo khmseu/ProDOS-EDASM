@@ -689,22 +689,29 @@ LD397       LDA    SortedP         ;EO aux array?
             SBC    AuxAryE+1
             RTS
 ;=================================================
-; Checks if external ROM is present
-; (A)=slot # (1-7)
-; Z=1 yes, Z=0 no
+; CHECK FOR ROM IN SLOT
+;
+; Checks if external ROM is present in a peripheral slot
+; Apple II has 7 slots (1-7) for expansion cards
+; Each slot can have ROM ($C100-$C7FF range)
+; Uses ProDOS's SLTBYT ($BF30) which has bits set for
+; each slot that contains ROM (bit 1=slot 1, etc.)
+;
+; Input: (A) = slot # (1-7)
+; Output: Z flag set if ROM present, clear if not
 ;=================================================
 Chk4ROM     TAX
-            LDA    #%00000010
+            LDA    #%00000010      ;Start with bit 1 (slot 1)
 LD3A3       DEX
-            BEQ    LD3A9
-            ASL
+            BEQ    LD3A9           ;Slot number reached
+            ASL                    ;Shift left to next slot bit
             BNE    LD3A3
 ;
-LD3A9       BIT    SLTBYT          ;Is a Slot ROM present?
-            BNE    LD3B1           ;Yes
-            LDA    #1
+LD3A9       BIT    SLTBYT          ;Test against ProDOS slot byte
+            BNE    LD3B1           ;Bit is set = ROM present
+            LDA    #1              ;Clear Z flag (no ROM)
             RTS
-LD3B1       LDA    #0              ;Z=1
+LD3B1       LDA    #0              ;Set Z flag (ROM found)
             RTS
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; (Y)=preserved
