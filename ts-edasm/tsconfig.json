@@ -18,5 +18,5 @@
     "skipLibCheck": true
   },
   "include": ["src"],
-  "exclude": ["dist", "src/test.ts"]
+  "exclude": ["dist", "src/test.ts", "src/test-suite.ts", "src/example.ts", "src/debug.ts"]
 }

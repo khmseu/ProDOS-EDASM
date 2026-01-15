@@ -24,6 +24,8 @@ class Assembler {
   private pc: number = 0; // Program counter
   private bytes: number[] = [];
   private errors: string[] = [];
+  private conditionalStack: boolean[] = []; // Stack for tracking conditional assembly state
+  private assemblyEnabled: boolean = true; // Whether we're currently assembling
 
   constructor(
     private readonly statements: Statement[],
@@ -97,12 +99,22 @@ class Assembler {
 
       case "DA":
       case "DW":
+      case "DDB":
         this.pc += 2;
         break;
 
       case "DB":
       case "DFB":
         this.pc += 1;
+        break;
+      
+      case "STR":
+        if (stmt.operand && stmt.operand.kind === "symbol") {
+          // String with length prefix (1 byte length + string bytes)
+          const str = stmt.operand.name;
+          const len = str.length - 2; // Remove quotes
+          this.pc += 1 + len; // Length byte + string bytes
+        }
         break;
 
       case "DS":
@@ -156,6 +168,15 @@ class Assembler {
           this.emitWord(value);
         }
         break;
+      
+      case "DDB":
+        // Double byte: high byte first, then low byte (reverse of DW)
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.emitByte((value >> 8) & 0xff); // High byte first
+          this.emitByte(value & 0xff); // Low byte second
+        }
+        break;
 
       case "DB":
       case "DFB":
@@ -183,6 +204,15 @@ class Assembler {
       case "DCI":
         if (stmt.operand && stmt.operand.kind === "symbol") {
           this.emitString(stmt.operand.name, true);
+        }
+        break;
+      
+      case "STR":
+        // String with length prefix: emit length byte followed by string
+        if (stmt.operand && stmt.operand.kind === "symbol") {
+          const content = stmt.operand.name.substring(1, stmt.operand.name.length - 1);
+          this.emitByte(content.length); // Length prefix
+          this.emitString(stmt.operand.name, false); // String bytes
         }
         break;
 

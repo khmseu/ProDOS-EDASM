@@ -53,6 +53,30 @@ VALUE   EQU $FF
 `,
     expected: [0xa9, 0xff],
   },
+  {
+    name: "STR directive (string with length prefix)",
+    source: `
+        ORG $6000
+        STR "HELLO"
+`,
+    expected: [0x05, 0x48, 0x45, 0x4c, 0x4c, 0x4f], // 5, 'H', 'E', 'L', 'L', 'O'
+  },
+  {
+    name: "DDB directive (double byte, high-low order)",
+    source: `
+        ORG $7000
+        DDB $1234
+`,
+    expected: [0x12, 0x34], // High byte first, then low byte
+  },
+  {
+    name: "DCI directive (last char inverted)",
+    source: `
+        ORG $8000
+        DCI "AB"
+`,
+    expected: [0x41, 0xc2], // 'A', 'B' with high bit set (0x42 | 0x80 = 0xC2)
+  },
 ];
 
 console.log("Running EDASM assembler test suite...\n");
