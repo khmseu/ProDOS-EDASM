@@ -89,9 +89,19 @@ export interface AssemblerOptions {
   basePath?: string; // Base path for resolving INCLUDE directives
 }
 
+// Relocation entry for RLD (Relocation Dictionary)
+export interface RelocationEntry {
+  address: number; // Address that needs relocation
+  size: number; // Size of value (1 or 2 bytes)
+}
+
 export interface AssemblyArtifact {
   bytes: Uint8Array;
   listing?: string;
   symbols: Record<string, number>;
   errors?: string[]; // Optional error messages from assembly
+  relocatable?: boolean; // True if assembled in REL mode
+  rld?: RelocationEntry[]; // Relocation Dictionary for linker
+  externals?: string[]; // External symbol names (from EXTRN directive)
+  entries?: string[]; // Entry point names (from ENTRY directive)
 }
