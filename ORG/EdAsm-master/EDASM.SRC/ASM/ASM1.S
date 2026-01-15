@@ -20,6 +20,9 @@ It is meant for viewing purposes only.
 ; This part of the code is loaded into memory
 ; at $6800 and relocated to $D000 bank2
 ;
+;=================================================
+; PASS 3: SYMBOL TABLE LISTING
+;
 ; Print the symbol table after an assembly listing
 ; The symbol table is about 27K. If there is not
 ; enough mem to do a listing, the assembler will
@@ -27,6 +30,12 @@ It is meant for viewing purposes only.
 ; symbol table may not contain all idfers
 ; Ref pg 84,113
 ;
+; Symbol markers in output:
+;   * = Symbol referenced but never defined (undefined)
+;   ? = Symbol defined but never referenced (unreferenced)
+;   X = EXTERN symbol (defined in another module)
+;   N = ENTRY symbol (exported for linking)
+;=================================================
 DoPass3     LDA    LstASym         ;List symbols?
             ORA    LstVSym
             BMI    ChkPrtCols      ;Yes
@@ -37,6 +46,7 @@ ChkPrtCols  LDA    #4
             BPL    UsePrtr
 ;
             LDA    #6
+; PrSlot contains slot # (1-7) if printer detected, 0 otherwise
 UsePrtr     LDX    PrSlot          ;Printer?
             BNE    SetPtrCols      ;Yes
             LDA    #2              ;40-col std video
@@ -100,17 +110,20 @@ LD06A       STY    SymNodeP        ;Points @ node containing
             LDA    #2              ;Skip over ptr to
             BNE    LD099           ; next node
 ;
-; The code below will trash the link ptrs (field) of nodes
+;=================================================
+; SYMBOL TABLE RESTRUCTURING
+;
+; The code below compacts the symbol table by removing
+; the 2-byte link field from each node. This saves memory
+; and simplifies the sorting process.
+;
+; Original layout: [link ptr (2)] [name (var)] [flag (1)] [addr (2)]
+; New layout:      [name (var)] [flag (1)] [addr (2)]
+;
 ; (StrtSymT) - points @ symbolicname field of the node
 ; (SymNodeP) - points @ link field of the same node
-; (StrtSymT) & (SymNodeP) will be changed
-; The purpose is to change the layout of the Nodes
-; removing the link field altogether
-; Layout of record now looks like this:
-;   symbolicname (variable in length)
-;   flagbyte
-;   16-bit value
-;
+; Both pointers advance through the table as we compact
+;=================================================
 LD076       LDY    #0
 LD078       LDA    (StrtSymT),Y    ;Get char fr symbolicname
             STA    (SymNodeP),Y    ; move it forward in node
@@ -166,13 +179,16 @@ LD0BF       LDA    StrtSymT        ;Start w/the 1st rec
             LDA    StrtSymT+1
             STA    SymP+1
 ;
-; The code below builds a fixed array of 2/4-bytes entries for sorting
-; Sort by Symbol - array of 2-bytes entries. Each element is a ptr
-; to a symbolicnname
-; Sort by Address - array of 4-byte entries. Each element consists
-; of a ptr to a symbolicname and address associated with
-; the symbolicname
+;=================================================
+; BUILD AUXILIARY SORTING ARRAY
 ;
+; Creates a fixed-size array for efficient sorting:
+; - Sort by Symbol: 2-byte entries (ptr to symbol name)
+; - Sort by Address: 4-byte entries (ptr + address)
+;
+; This indirection allows sorting without moving the
+; actual symbol table entries, saving time and memory
+;=================================================
             LDA    #2              ;Default to 2-byte entries
             BIT    SortF           ;Sort by symbol?
             BPL    LD0CE           ;Yes
@@ -332,10 +348,22 @@ LD1C5       LDA    SymP            ;Check if EO symbol table?
             SBC    EndSymT+1       ;C=1 => yes
 doRtn1      RTS
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; Sorting Algorithm
-; See Disassembled ProDOS Linker for more details
-; Before calling, the work array of 2-byte/4-byte
-; entries must be setup
+; SHELL SORT ALGORITHM
+;
+; Implements Knuth's Shell Sort with diminishing gap
+; sequence (gap = gap / 2). More efficient than bubble
+; sort for medium-sized arrays.
+;
+; Sorts the auxiliary array built earlier (2 or 4-byte
+; entries) either by symbol name or by address value.
+;
+; Algorithm: WHILE gap > 0 DO
+;              FOR j=1 TO n-gap DO
+;                REPEAT
+;                  compare and swap if needed
+;                  j = j - gap
+;                UNTIL j <= gap
+;              gap = gap / 2
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 DoSort      LDA    NumRecs         ;Size of unsorted array
             STA    Jump
@@ -531,9 +559,13 @@ LD2CC       LDA    EndIdx
 LD2D2       JMP    ForLoop         ;Start Index =< End Index
             REP    50
 ;
-; Print the sorted symbols and addresses
-; (SortedP) should be pointing @ BO aux work array
+;=================================================
+; PRINT SORTED SYMBOL TABLE
 ;
+; Outputs the sorted symbol table with proper formatting
+; Shows symbol name, address, and status flags
+; Handles multi-column layout (2, 4, or 6 columns)
+;=================================================
 PrSymTbl    JSR    PrtFF
 LD2D8       LDA    #0
             STA    ColCnt          ;# of cols printed
