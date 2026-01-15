@@ -96,6 +96,16 @@ function expandIncludes(
   return expanded;
 }
 
+// Information about each line for listing generation
+interface ListingLine {
+  pc: number;
+  bytes: number[];
+  sourceLine: string;
+  lineNumber: number;
+  suppressed: boolean; // True if in false conditional
+  expressionResult?: number; // Result of expression evaluation for display
+}
+
 class Assembler {
   private symbols: Record<string, number> = {};
   private pc: number = 0; // Program counter
@@ -105,6 +115,10 @@ class Assembler {
   private assemblyEnabled: boolean = true; // Whether we're currently assembling
   private msbOn: boolean = false; // MSB setting for ASCII output (default OFF for compatibility)
   private inDsect: boolean = false; // Whether we're inside a DSECT block
+  private listingLines: ListingLine[] = []; // Track listing information
+  private listingEnabled: boolean = true; // Whether listing is enabled (LST ON/OFF)
+  private currentLineNumber: number = 0; // Current source line number
+  private repeatChar: string = "*"; // Character to use for REP directive
 
   constructor(
     private readonly statements: Statement[],
@@ -172,16 +186,27 @@ class Assembler {
     this.bytes = [];
     this.conditionalStack = [];
     this.assemblyEnabled = true;
+    this.listingLines = [];
+    this.currentLineNumber = 0;
 
     for (const stmt of this.statements) {
+      this.currentLineNumber++;
+      const startPC = this.pc;
+      const startByteCount = this.bytes.length;
+
       // Handle conditional directives first
       if (stmt.directive) {
         const directive = stmt.directive.toUpperCase();
         if (this.isConditionalDirective(directive)) {
           this.processConditionalDirective(directive, stmt, false);
+          // Add listing line for conditional directives
+          this.addListingLine(stmt, startPC, startByteCount, !this.assemblyEnabled);
           continue;
         }
       }
+
+      // Track whether this line is suppressed
+      const suppressed = !this.assemblyEnabled;
 
       // Only emit code if assembly is enabled
       if (this.assemblyEnabled) {
@@ -191,6 +216,9 @@ class Assembler {
           this.emitInstruction(stmt);
         }
       }
+      
+      // Add listing line after processing (captures bytes emitted)
+      this.addListingLine(stmt, startPC, startByteCount, suppressed);
     }
   }
 
@@ -264,10 +292,13 @@ class Assembler {
         break;
 
       case "HEX":
-        if (stmt.operand && stmt.operand.kind === "symbol") {
-          // Hex bytes (2 chars per byte)
-          const hex = stmt.operand.name.replace(/\s/g, "");
-          this.pc += Math.floor(hex.length / 2);
+        {
+          const hexString = this.extractHexString(stmt);
+          if (hexString) {
+            // Hex bytes (2 chars per byte)
+            const hex = hexString.replace(/\s/g, "");
+            this.pc += Math.floor(hex.length / 2);
+          }
         }
         break;
     }
@@ -369,9 +400,44 @@ class Assembler {
         break;
 
       case "HEX":
-        if (stmt.operand && stmt.operand.kind === "symbol") {
-          this.emitHexString(stmt.operand.name);
+        {
+          const hexString = this.extractHexString(stmt);
+          if (hexString) {
+            this.emitHexString(hexString);
+          }
         }
+        break;
+      
+      // Listing control directives
+      case "LST":
+      case "LSTDO":
+        // LST ON/OFF or LSTDO: Control listing output
+        this.listingEnabled = this.evaluateLstDirective(stmt);
+        break;
+      
+      case "PAGE":
+        // PAGE: Page eject - will be handled in listing generation
+        // No code generation, just marker for listing
+        break;
+      
+      case "SKP":
+        // SKP: Skip lines - will be handled in listing generation
+        // No code generation, just marker for listing
+        break;
+      
+      case "REP":
+        // REP: Repeat character - will be handled in listing generation
+        // No code generation, just marker for listing
+        break;
+      
+      case "CHR":
+        // CHR: Set repeat character for REP directive
+        this.processChrDirective(stmt);
+        break;
+      
+      case "SBTL":
+        // SBTL: Subtitle - will be handled in listing generation
+        // No code generation, just marker for listing
         break;
     }
   }
@@ -712,37 +778,239 @@ class Assembler {
     }
   }
 
-  private generateListing(): string {
-    let listing = "";
-    let pc = 0;
-
-    for (const stmt of this.statements) {
-      const line = `${pc.toString(16).padStart(4, "0").toUpperCase()}  `;
-      listing += line;
-
-      if (stmt.label) {
-        listing += `${stmt.label}: `;
-      }
-      if (stmt.opcode) {
-        listing += `${stmt.opcode} `;
-      }
-      if (stmt.directive) {
-        listing += `${stmt.directive} `;
-      }
-      if (stmt.comment) {
-        listing += stmt.comment;
-      }
-
-      listing += "\n";
-
-      // Update PC
-      if (stmt.directive) {
-        // Simplified - just track ORG
-        if (stmt.directive.toUpperCase() === "ORG" && stmt.operand) {
-          pc = this.evaluateExpression(stmt.operand);
+  private evaluateLstDirective(stmt: Statement): boolean {
+    // Helper method to evaluate LST/LSTDO directive operand
+    // Returns true for ON, false for OFF
+    if (stmt.operand) {
+      if (stmt.operand.kind === "symbol") {
+        const operandName = stmt.operand.name.toUpperCase();
+        if (operandName === "ON") {
+          return true;
+        } else if (operandName === "OFF") {
+          return false;
         }
-      } else if (stmt.opcode) {
-        pc += this.calculateInstructionSize(stmt);
+        // Any other symbol defaults to OFF
+        return false;
+      } else {
+        // Numeric value: 0 = OFF, non-zero = ON
+        const value = this.evaluateExpression(stmt.operand);
+        return value !== 0;
+      }
+    } else {
+      // No operand means ON
+      return true;
+    }
+  }
+
+  private processChrDirective(stmt: Statement): void {
+    // Helper method to process CHR directive and update repeatChar
+    if (stmt.operand && stmt.operand.kind === "symbol") {
+      // Extract the character from the symbol (should be a quoted character)
+      let charStr = stmt.operand.name;
+      if ((charStr.startsWith('"') && charStr.endsWith('"')) ||
+          (charStr.startsWith("'") && charStr.endsWith("'"))) {
+        charStr = charStr.slice(1, -1);
+      }
+      if (charStr.length > 0) {
+        this.repeatChar = charStr[0];
+      }
+    } else if (stmt.operand && stmt.operand.kind === "literal") {
+      // ASCII value of character
+      const asciiValue = this.evaluateExpression(stmt.operand);
+      this.repeatChar = String.fromCharCode(asciiValue);
+    }
+  }
+
+  private extractHexString(stmt: Statement): string | null {
+    // Helper method to extract hex string from HEX directive operand
+    if (!stmt.operand) {
+      return null;
+    }
+
+    if (stmt.operand.kind === "symbol") {
+      return stmt.operand.name;
+    } else if (stmt.operand.kind === "literal") {
+      // For HEX directive, find the original token to get the raw string
+      // This preserves the hex digits instead of converting from decimal
+      const operandToken = stmt.tokens.find(t => t.kind === "number");
+      if (operandToken) {
+        return operandToken.lexeme;
+      } else {
+        // Fallback: convert literal back to hex string
+        let hexString = stmt.operand.value.toString(16);
+        // Pad to even length
+        if (hexString.length % 2 !== 0) {
+          hexString = "0" + hexString;
+        }
+        return hexString;
+      }
+    }
+
+    return null;
+  }
+
+  private addListingLine(
+    stmt: Statement,
+    startPC: number,
+    startByteCount: number,
+    suppressed: boolean
+  ): void {
+    // Get the bytes emitted for this statement
+    const bytes = this.bytes.slice(startByteCount);
+    
+    // Reconstruct the source line
+    let sourceLine = "";
+    if (stmt.label) {
+      sourceLine += stmt.label;
+    }
+    if (stmt.opcode) {
+      sourceLine += (sourceLine ? "  " : "") + stmt.opcode;
+    }
+    if (stmt.directive) {
+      sourceLine += (sourceLine ? "  " : "") + stmt.directive;
+    }
+    if (stmt.comment) {
+      sourceLine += " " + stmt.comment;
+    }
+    
+    // Calculate expression result if there's an operand
+    let expressionResult: number | undefined;
+    if (stmt.operand && (stmt.directive?.toUpperCase() === "EQU" || stmt.opcode)) {
+      try {
+        expressionResult = this.evaluateExpression(stmt.operand);
+      } catch {
+        // Ignore evaluation errors for listing
+      }
+    }
+    
+    this.listingLines.push({
+      pc: startPC,
+      bytes,
+      sourceLine,
+      lineNumber: this.currentLineNumber,
+      suppressed,
+      expressionResult,
+    });
+  }
+
+  private generateListing(): string {
+    if (this.listingLines.length === 0) {
+      return "";
+    }
+
+    let listing = "";
+    let listingOutputEnabled = true; // Track LST ON/OFF state during listing generation
+
+    for (let i = 0; i < this.listingLines.length; i++) {
+      const line = this.listingLines[i];
+      const stmt = this.statements[i];
+
+      // Handle listing control directives
+      if (stmt.directive) {
+        const directive = stmt.directive.toUpperCase();
+        
+        // Handle LST ON/OFF directive
+        if (directive === "LST" || directive === "LSTDO") {
+          listingOutputEnabled = this.evaluateLstDirective(stmt);
+        }
+        
+        // Handle CHR directive - set repeat character
+        if (directive === "CHR") {
+          this.processChrDirective(stmt);
+          continue; // CHR doesn't produce listing output
+        }
+        
+        // Handle PAGE directive - insert form feed
+        if (directive === "PAGE") {
+          listing += "\f";
+          continue;
+        }
+        
+        // Handle SKP directive - insert blank lines
+        if (directive === "SKP") {
+          if (stmt.operand) {
+            const count = this.evaluateExpression(stmt.operand);
+            for (let j = 0; j < count; j++) {
+              listing += "\n";
+            }
+          }
+          continue;
+        }
+        
+        // Handle REP directive - insert repeated character line
+        if (directive === "REP") {
+          if (stmt.operand) {
+            const count = this.evaluateExpression(stmt.operand);
+            // Use the repeat character set by CHR directive (default is '*')
+            listing += this.repeatChar.repeat(count) + "\n";
+          }
+          continue;
+        }
+        
+        // Handle SBTL directive - insert subtitle line
+        if (directive === "SBTL") {
+          if (stmt.operand && stmt.operand.kind === "symbol") {
+            // Remove quotes from subtitle
+            let subtitle = stmt.operand.name;
+            if ((subtitle.startsWith('"') && subtitle.endsWith('"')) ||
+                (subtitle.startsWith("'") && subtitle.endsWith("'"))) {
+              subtitle = subtitle.slice(1, -1);
+            }
+            listing += "\n" + subtitle + "\n\n";
+          }
+          continue;
+        }
+      }
+
+      // Skip if listing is disabled
+      if (!listingOutputEnabled) {
+        continue;
+      }
+
+      // Format: PC:5  Code:12      ER:3 Line:5  Source
+      // Example: 1000  A9 42           52     2  START   LDA #$42
+      
+      // PC field (5 chars, right-aligned)
+      const pcStr = line.pc.toString(16).toUpperCase().padStart(4, "0");
+      listing += pcStr.padEnd(5);
+      listing += " ";
+      
+      // Code field (12 chars) - show up to 4 bytes on first line
+      const codeBytes = line.bytes.slice(0, 4);
+      const codeStr = codeBytes.map(b => b.toString(16).toUpperCase().padStart(2, "0")).join(" ");
+      listing += codeStr.padEnd(12);
+      listing += " ";
+      
+      // ER field (3 chars) - expression result or suppressed indicator
+      if (line.suppressed) {
+        listing += "S".padEnd(3);
+      } else if (line.expressionResult !== undefined) {
+        const erStr = line.expressionResult.toString(16).toUpperCase().padStart(2, "0");
+        listing += erStr.padEnd(3);
+      } else {
+        listing += "   ";
+      }
+      listing += " ";
+      
+      // Line number field (5 chars, right-aligned)
+      listing += line.lineNumber.toString().padStart(5);
+      listing += "  ";
+      
+      // Source line
+      listing += line.sourceLine;
+      listing += "\n";
+      
+      // Handle continuation lines for >4 bytes
+      if (line.bytes.length > 4) {
+        for (let j = 4; j < line.bytes.length; j += 4) {
+          const continuationBytes = line.bytes.slice(j, j + 4);
+          const continuationStr = continuationBytes
+            .map(b => b.toString(16).toUpperCase().padStart(2, "0"))
+            .join(" ");
+          
+          // Indent continuation line with spaces
+          listing += "     " + continuationStr.padEnd(12) + "            \n";
+        }
       }
     }
 

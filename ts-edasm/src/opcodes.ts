@@ -339,7 +339,9 @@ export const DIRECTIVES = new Set([
   
   // Macros
   "MAC", // Define macro
+  "MACRO", // Define macro (alternate)
   "EOM", // End of macro
+  "ENDM", // End of macro (alternate)
   "PMC", // Print macro
   ">>>", // Macro call (alternate form)
   
