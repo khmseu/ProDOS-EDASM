@@ -1,5 +1,5 @@
-import { Parser } from "./parser";
-import { AssemblerOptions, AssemblyArtifact } from "./types";
+import { Parser } from "./parser.js";
+import { AssemblerOptions, AssemblyArtifact } from "./types.js";
 
 // Two-pass assembler shell for EDASM compatibility.
 export function assemble(source: string, options: AssemblerOptions = {}): AssemblyArtifact {

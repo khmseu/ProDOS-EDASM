@@ -1,4 +1,4 @@
-import { Token } from "./types";
+import { Token } from "./types.js";
 
 // Skeleton lexical analyzer; the real implementation will mirror EDASM's fielded source format.
 export class Lexer {

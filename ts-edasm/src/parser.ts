@@ -1,5 +1,5 @@
-import { Lexer } from "./lexer";
-import { ParseResult, Statement } from "./types";
+import { Lexer } from "./lexer.js";
+import { ParseResult, Statement } from "./types.js";
 
 // Basic parser skeleton; evaluates expressions left-to-right like EDASM.
 export class Parser {

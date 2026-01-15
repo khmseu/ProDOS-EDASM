@@ -1,2 +1,2 @@
-export { assemble } from "./assembler";
-export * from "./types";
+export { assemble } from "./assembler.js";
+export * from "./types.js";
