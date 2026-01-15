@@ -170,9 +170,24 @@ export class Parser {
       operand = result.expr;
       tokens.push(...result.tokens);
 
-      if (this.check("rparen")) {
+      // Check for indexed-indirect (zp,X) - comma before closing paren
+      if (this.check("comma")) {
         tokens.push(this.advance());
-        // Check for indexed indirect (,Y)
+        if (this.check("label")) {
+          const token = this.currentToken();
+          if (token && token.lexeme.toUpperCase() === "X") {
+            tokens.push(this.advance());
+            if (this.check("rparen")) {
+              tokens.push(this.advance());
+              addressing = "indirect-x";
+            }
+          }
+        }
+      }
+      // Check for closing paren
+      else if (this.check("rparen")) {
+        tokens.push(this.advance());
+        // Check for indirect-indexed (zp),Y - comma after closing paren
         if (this.check("comma")) {
           tokens.push(this.advance());
           if (this.check("label")) {
@@ -273,6 +288,13 @@ export class Parser {
       tokens.push(token);
       // For now, treat strings as symbols (will be handled in assembler)
       return { kind: "symbol", name: token.lexeme, pos: token.pos };
+    }
+
+    // Program counter reference (*) - treated as special symbol
+    if (this.check("operator") && this.currentToken().lexeme === "*") {
+      const token = this.advance();
+      tokens.push(token);
+      return { kind: "symbol", name: "*", pos: token.pos };
     }
 
     // Unary operators (< for low byte, > for high byte)

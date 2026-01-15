@@ -6,18 +6,21 @@ TypeScript reimplementation of the EDASM assembler from the PRODOS Assembler Too
 
 ✅ **Core assembler implemented** - The assembler is functional with the following features:
 
-- Complete 6502 instruction set with all addressing modes
+- Complete 6502 instruction set with all addressing modes (including indexed-indirect)
 - EDASM assembler directives (ORG, EQU, DB/DFB, DW/DA, DDB, ASC, DCI, STR, HEX, DS, DSECT/DEND, MSB)
 - Conditional assembly (DO, IF, ELSE, FIN, IFNE, IFEQ, IFGT, IFGE, IFLT, IFLE)
 - Two-pass assembly (symbol table generation and code emission)
 - Automatic zeropage optimization
 - Relative addressing for branch instructions
 - Left-to-right expression evaluation (EDASM-style)
+- Program counter (*) reference in expressions
 - EDASM fielded source format support
 - Structure definitions (DSECT/DEND) without emitting bytes
 - MSB control for ASCII string output
-- **NEW: Octal constants (@prefix) support**
-- **NEW: INCLUDE directive for file inclusion with nesting**
+- **Octal constants (@prefix) support**
+- **INCLUDE directive for file inclusion with nesting**
+- **Program counter (*) as expression value**
+- **Indexed-indirect (zp,X) addressing mode**
 
 ## Usage
 
@@ -153,7 +156,8 @@ All 6502 instructions with appropriate addressing modes:
 - Decimal: 123
 - Hexadecimal: $7F or 0xFF
 - Binary: %10101010 or 0b10101010
-- Octal: @777 (NEW)
+- Octal: @777
+- Program Counter: * (current assembly address)
 - Operators: +, -, \*, / (left-to-right evaluation)
 - Low byte: < (in immediate mode: #<VALUE)
 - High byte: > (in immediate mode: #>VALUE)
@@ -170,7 +174,8 @@ All 6502 instructions with appropriate addressing modes:
 - Absolute,X: LDA $1000,X
 - Absolute,Y: LDA $1000,Y
 - Indirect: JMP ($1000)
-- (Indirect),Y: LDA ($80),Y
+- Indexed-Indirect (zp,X): LDA ($80,X)
+- Indirect-Indexed (zp),Y: LDA ($80),Y
 
 ## Next steps
 
@@ -188,5 +193,12 @@ All 6502 instructions with appropriate addressing modes:
 - ✅ Added octal constant support (@prefix for numbers like @777)
 - ✅ Implemented INCLUDE directive with recursive file inclusion
 - ✅ Added circular include detection
+- ✅ **Program counter (*) reference support for expressions**
+  - Enables `EQU *` to define label at current PC
+  - Supports arithmetic like `EQU *-1` and `EQU *+10`
+- ✅ **Indexed-indirect addressing mode (zp,X)**
+  - Added support for `(zp,X)` syntax
+  - Implemented for ADC, AND, CMP, EOR, LDA, ORA, SBC, STA
+  - Fixed indirect-y operand size (was incorrectly using 2 bytes, now correctly 1 byte)
 - ✅ Enhanced TypeScript configuration with node types support
 - ✅ All existing tests pass with new features

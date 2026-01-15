@@ -474,8 +474,12 @@ class Assembler {
           case "absolute-x":
           case "absolute-y":
           case "jmp-indirect":
-          case "indirect-y":
             this.emitWord(value);
+            break;
+          
+          case "indirect-x":
+          case "indirect-y":
+            this.emitByte(value);
             break;
         }
       }
@@ -514,6 +518,8 @@ class Assembler {
       case "zeropage":
       case "zeropage-x":
       case "zeropage-y":
+      case "indirect-x":
+      case "indirect-y":
         return 2;
 
       case "absolute":
@@ -534,6 +540,10 @@ class Assembler {
         return expr.value;
 
       case "symbol":
+        // Handle program counter reference (*)
+        if (expr.name === "*") {
+          return this.pc;
+        }
         // Handle string literals (remove quotes)
         if (expr.name.startsWith('"') || expr.name.startsWith("'")) {
           return expr.name.charCodeAt(1); // First character
