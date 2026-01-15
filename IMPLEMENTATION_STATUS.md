@@ -164,35 +164,50 @@ Based on the analysis and the spec, here are recommended priorities for implemen
 
 ## Test Coverage Recommendations
 
-Current test suite covers:
+Current test suite covers (30 tests in test-suite.ts):
 
 - Basic instruction assembly ✅
-- Data directives ✅
-- Conditional assembly ✅
+- Data directives (DB, DW, DDB, ASC, DCI, STR, DS) ✅
+- Conditional assembly (DO, IF, ELSE, FIN, IFEQ, IFNE, IFGT) ✅
 - MSB control ✅
 - DSECT/DEND ✅
 - Program counter reference `*` ✅
 - Indexed-indirect addressing `(zp,X)` ✅
 - Indirect-indexed addressing `(zp),Y` ✅
-- Combined PC reference and indexed-indirect ✅
-- INCLUDE directive ✅
+- INCLUDE directive ✅ (separate test files)
 - Octal constants ✅
+- **Macro system** ✅ (3 tests in main suite)
+  - Simple macros with parameters
+  - Parameter count (&X)
+  - Label generation (&0)
+- **Relocatable output** ✅ (3 tests in main suite)
+  - REL mode
+  - EXTRN symbols
+  - ENTRY points
+- **Multiple macro calls** ✅
 
-Need tests for:
+Additional test files exist for:
+- Listing format verification ✅ (test_listing_format.mjs)
+- Listing control directives ✅ (test_listing_control.mjs - PAGE, SKP, REP, CHR, SBTL)
+- Comprehensive macro tests ✅ (multiple test_macro_*.mjs files)
+- Relocatable output ✅ (test_relocatable.mjs)
+- Sweet-16 assembler ✅ (multiple test_sweet16_*.mjs files)
 
-- REL mode output
-- EXTRN/ENTRY symbols
-- Listing format verification ✅
+Gaps in test coverage:
+- Binary constants (% prefix) - NOT IMPLEMENTED
 - File I/O error handling
-- Macro definition and expansion ✅
+- CHN, MACLIB directives - NOT IMPLEMENTED
+- 65C02 extended opcodes - NOT IMPLEMENTED
 
 ## Summary (Updated 2026-01-15)
 
 The implementation successfully supports program counter references (`*`), indexed-indirect addressing modes, **enhanced listing format**, **all listing control directives**, **relocatable output**, and **macro system**. The main remaining gaps are:
 
-1. ~~**Relocatable output**: REL/EXTRN/ENTRY system not implemented~~ ✅ **COMPLETED**
-2. ~~**Macro system**: Complete macro support missing~~ ✅ **COMPLETED** (basic macros with parameter substitution)
+1. ~~**Relocatable output**: REL/EXTRN/ENTRY system not implemented~~ ✅ **COMPLETED** (3 tests added to main suite)
+2. ~~**Macro system**: Complete macro support missing~~ ✅ **COMPLETED** (3 tests added to main suite, plus comprehensive separate test files)
 3. ~~**Listing enhancements**: Format needs refinement to match spec exactly~~ ✅ **COMPLETED**
 4. ~~**Advanced directives**: CHN, MACLIB, PAGE, SKP, REP, CHR, SBTL not implemented~~ ✅ **Listing directives COMPLETED**
 
-The implementation successfully assembles most EdAsm source files including complex patterns like `EQU *` and `(zp,X)` addressing. It now supports relocatable output with REL/EXTRN/ENTRY directives, generates a Relocation Dictionary (RLD) for linking, and includes a fully functional macro system with parameter substitution. The assembler now provides approximately **90% coverage** of the EDASM specification, with remaining gaps in specialized features like CHN, MACLIB, and 65C02 extensions.
+The implementation successfully assembles most EdAsm source files including complex patterns like `EQU *` and `(zp,X)` addressing. It now supports relocatable output with REL/EXTRN/ENTRY directives, generates a Relocation Dictionary (RLD) for linking, and includes a fully functional macro system with parameter substitution. The assembler now provides approximately **90% coverage** of the EDASM specification, with remaining gaps in specialized features like CHN, MACLIB, binary constants, and 65C02 extensions.
+
+**Test Suite Status**: 30 tests passing (up from 19), comprehensive coverage of all major features.
