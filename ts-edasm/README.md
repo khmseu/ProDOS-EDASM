@@ -16,6 +16,8 @@ TypeScript reimplementation of the EDASM assembler from the PRODOS Assembler Too
 - EDASM fielded source format support
 - Structure definitions (DSECT/DEND) without emitting bytes
 - MSB control for ASCII string output
+- **NEW: Octal constants (@prefix) support**
+- **NEW: INCLUDE directive for file inclusion with nesting**
 
 ## Usage
 
@@ -31,9 +33,29 @@ START   LDA #$00
         RTS
 `;
 
-const result = assemble(source, { listing: false });
+const result = assemble(source, { 
+  listing: false,
+  basePath: '.' // Optional: base path for INCLUDE directive resolution
+});
 console.log(result.bytes); // Uint8Array of assembled machine code
 console.log(result.symbols); // Symbol table
+```
+
+### Using INCLUDE Directive
+
+```typescript
+// main.s
+const mainSource = `
+        ORG $1000
+        INCLUDE "constants.s"
+START   LDA #BELL
+        RTS
+`;
+
+// Assemble with basePath to resolve includes
+const result = assemble(mainSource, { 
+  basePath: './src' // Directory where constants.s is located
+});
 ```
 
 ## Building
@@ -48,13 +70,13 @@ npm run build
 Test files are provided but excluded from the build:
 
 ```bash
-# Compile and run basic test
-npx tsc src/test.ts --module NodeNext --moduleResolution NodeNext --target ES2020 --lib ES2020 --outDir dist
-node dist/test.js
+# Run the comprehensive test suite
+npm run test
 
-# Compile and run comprehensive test suite
-npx tsc src/test-suite.ts --module NodeNext --moduleResolution NodeNext --target ES2020 --lib ES2020 --outDir dist
-node dist/test-suite.js
+# Run individual test files
+node test_octal.mjs      # Test octal constant support
+node test_include.mjs    # Test INCLUDE directive
+node test_commonequs.mjs # Test with real EdAsm source files
 ```
 
 ## References
@@ -123,11 +145,15 @@ All 6502 instructions with appropriate addressing modes:
 **Output Control:**
 - MSB: Control high bit for ASCII output (MSB ON/OFF)
 
+**File Operations:**
+- INCLUDE: Include another source file at current position (supports nesting)
+
 ### Expression Syntax
 
 - Decimal: 123
 - Hexadecimal: $7F or 0xFF
 - Binary: %10101010 or 0b10101010
+- Octal: @777 (NEW)
 - Operators: +, -, \*, / (left-to-right evaluation)
 - Low byte: < (in immediate mode: #<VALUE)
 - High byte: > (in immediate mode: #>VALUE)
@@ -150,8 +176,17 @@ All 6502 instructions with appropriate addressing modes:
 
 1. Implement enhanced listing format (proper field widths, expression results, cycle timing)
 2. Add support for more control directives (PAGE, SKP, REP, CHR, SBTL)
-3. Implement file directives (INCLUDE, MACLIB, CHN)
+3. ~~Implement file directives (INCLUDE, MACLIB, CHN)~~ ✅ INCLUDE implemented
 4. Add relocatable output format (REL mode with RLD)
 5. Implement macro expansion support
 6. Add EXTRN/ENTRY support for external symbols
 7. Add fixtures/tests using samples from ASM sources to verify compatibility
+
+## Recent Updates
+
+### 2026-01-15
+- ✅ Added octal constant support (@prefix for numbers like @777)
+- ✅ Implemented INCLUDE directive with recursive file inclusion
+- ✅ Added circular include detection
+- ✅ Enhanced TypeScript configuration with node types support
+- ✅ All existing tests pass with new features
