@@ -233,6 +233,15 @@ class Assembler {
   private relocationDictionary: Array<{address: number; size: number}> = []; // RLD entries
   private externalSymbols: string[] = []; // EXTRN directive populates this
   private entryPoints: string[] = []; // ENTRY directive populates this
+  
+  // Performance: Pre-computed Sets for O(1) lookups instead of O(n) array.includes()
+  private static readonly BRANCH_OPCODES = new Set([
+    "BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS"
+  ]);
+  
+  private static readonly CONDITIONAL_DIRECTIVES = new Set([
+    "DO", "IF", "IFNE", "IFEQ", "IFGT", "IFGE", "IFLT", "IFLE", "ELSE", "FIN"
+  ]);
 
   constructor(
     private readonly statements: Statement[],
@@ -618,16 +627,7 @@ class Assembler {
     let addressing = stmt.addressing || "implied";
 
     // Branch instructions use immediate mode but with relative addressing
-    const isBranch = [
-      "BCC",
-      "BCS",
-      "BEQ",
-      "BMI",
-      "BNE",
-      "BPL",
-      "BVC",
-      "BVS",
-    ].includes(stmt.opcode!.toUpperCase());
+    const isBranch = Assembler.BRANCH_OPCODES.has(stmt.opcode!.toUpperCase());
 
     // For branch instructions, convert absolute/zeropage to immediate
     if (isBranch && (addressing === "absolute" || addressing === "zeropage")) {
@@ -729,16 +729,7 @@ class Assembler {
     const addressing = stmt.addressing || "implied";
 
     // Branch instructions are always 2 bytes (opcode + relative offset)
-    const isBranch = [
-      "BCC",
-      "BCS",
-      "BEQ",
-      "BMI",
-      "BNE",
-      "BPL",
-      "BVC",
-      "BVS",
-    ].includes(stmt.opcode!.toUpperCase());
+    const isBranch = Assembler.BRANCH_OPCODES.has(stmt.opcode!.toUpperCase());
     if (isBranch) {
       return 2;
     }
@@ -854,7 +845,7 @@ class Assembler {
   }
 
   private isConditionalDirective(directive: string): boolean {
-    return ["DO", "IF", "IFNE", "IFEQ", "IFGT", "IFGE", "IFLT", "IFLE", "ELSE", "FIN"].includes(directive);
+    return Assembler.CONDITIONAL_DIRECTIVES.has(directive);
   }
   
   private toSigned16(value: number): number {
@@ -1214,9 +1205,10 @@ class Assembler {
       }
     }
     
-    // Split by comma and add to target array
+    // Split by comma and add to target array (using Set for O(1) deduplication)
     if (symbolText) {
       const symbols = symbolText.split(',').map(s => s.trim()).filter(s => s.length > 0);
+      const existingSet = new Set(targetArray);
       for (const symbol of symbols) {
         // Remove quotes if present
         let cleanSymbol = symbol;
@@ -1224,8 +1216,9 @@ class Assembler {
             (cleanSymbol.startsWith("'") && cleanSymbol.endsWith("'"))) {
           cleanSymbol = cleanSymbol.slice(1, -1);
         }
-        if (!targetArray.includes(cleanSymbol)) {
+        if (!existingSet.has(cleanSymbol)) {
           targetArray.push(cleanSymbol);
+          existingSet.add(cleanSymbol);
         }
       }
     }
