@@ -10,6 +10,12 @@
  * - ENTRY: Entry points for linking
  * - Relocation Dictionary (RLD): Not generated
  * - External Symbol Directory (ESD): Not generated
+ * 
+ * NOTE: When implementing these features, the assembler return type should be extended with:
+ * - relocatable: boolean (indicates if assembly was in REL mode)
+ * - rld: RelocationDictionary | undefined (relocation dictionary for linker)
+ * - externals: string[] | undefined (list of external symbol names)
+ * - entries: string[] | undefined (list of entry point names)
  */
 
 import { assemble } from "./dist/index.js";

@@ -8,6 +8,10 @@
  * - Macro definition
  * - Macro expansion
  * - Parameter substitution: &0-&9, &X
+ * 
+ * NOTE: These tests use try-catch blocks as the assembler does not yet recognize
+ * macro directives and will throw errors or hang. This is expected behavior until
+ * the macro system is implemented.
  */
 
 import { assemble } from "./dist/index.js";

@@ -10,6 +10,9 @@
  * - Cycle timing should be shown (cycle count display)
  * - Suppressed assembly indicator: 'S' for false conditionals
  * - Multi-line continuations for >4 bytes generated
+ * 
+ * NOTE: The assembler currently accepts { listing: true } as an option.
+ * When implementing these features, ensure the listing format matches the spec.
  */
 
 import { assemble } from "./dist/index.js";
