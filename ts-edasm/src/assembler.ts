@@ -4,6 +4,7 @@ import {
   AssemblyArtifact,
   Statement,
   Expression,
+  MacroDefinition,
 } from "./types.js";
 import { getOpcode, isDirective } from "./opcodes.js";
 import * as fs from "fs";
@@ -14,7 +15,10 @@ export function assemble(
   source: string,
   options: AssemblerOptions = {},
 ): AssemblyArtifact {
-  const parser = new Parser(source);
+  // Pre-process macros at the text level before parsing
+  const { sourceWithoutMacros, macros } = extractAndExpandMacros(source);
+  
+  const parser = new Parser(sourceWithoutMacros);
   const { statements } = parser.parse();
 
   // Expand INCLUDE directives
@@ -31,6 +35,110 @@ export function assemble(
   }
   
   return result;
+}
+
+// Extract macro definitions and expand macro calls at the text level
+function extractAndExpandMacros(source: string): { sourceWithoutMacros: string; macros: Map<string, MacroDefinition> } {
+  const lines = source.split('\n');
+  const macros = new Map<string, MacroDefinition>();
+  const outputLines: string[] = [];
+  
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    
+    // Check if this line starts a macro definition
+    // Format: LABEL   MACRO
+    const macroMatch = line.match(/^(\w+)\s+(MACRO|MAC)\s*(?:;.*)?$/i);
+    
+    if (macroMatch) {
+      const macroName = macroMatch[1].toUpperCase();
+      const bodyLines: string[] = [];
+      const startLine = i;
+      
+      // Skip the MACRO line
+      i++;
+      
+      // Collect lines until ENDM
+      while (i < lines.length) {
+        const bodyLine = lines[i];
+        const bodyTrimmed = bodyLine.trim().toUpperCase();
+        
+        if (bodyTrimmed === 'ENDM' || bodyTrimmed === 'EOM' || bodyTrimmed.startsWith('ENDM ') || bodyTrimmed.startsWith('EOM ')) {
+          // Found end of macro
+          i++; // Skip ENDM line
+          break;
+        }
+        
+        bodyLines.push(bodyLine);
+        i++;
+      }
+      
+      // Store the macro
+      macros.set(macroName, {
+        name: macroName,
+        bodyLines,
+        pos: { line: startLine + 1, column: 1 },
+      });
+    } else {
+      // Check if this line is a macro call
+      // Format: [label]   MACRONAME [args...]
+      const callMatch = line.match(/^(\w+)?\s+(\w+)(.*)$/);
+      
+      if (callMatch) {
+        const label = callMatch[1] || '';
+        const possibleMacro = callMatch[2].toUpperCase();
+        const argsText = callMatch[3];
+        
+        if (macros.has(possibleMacro)) {
+          // This is a macro call!
+          const macro = macros.get(possibleMacro)!;
+          
+          // Parse arguments (comma-separated)
+          const args: string[] = [];
+          if (argsText.trim()) {
+            // Simple argument parsing - split by comma
+            const argsPart = argsText.split(';')[0]; // Remove comments
+            args.push(...argsPart.split(',').map(a => a.trim()).filter(a => a));
+          }
+          
+          // Expand the macro body
+          for (const bodyLine of macro.bodyLines) {
+            let expandedLine = bodyLine;
+            
+            // Substitute &0 (first argument, used for labels)
+            if (args.length > 0) {
+              expandedLine = expandedLine.replace(/&0/g, args[0]);
+            }
+            
+            // Substitute &X (parameter count)
+            expandedLine = expandedLine.replace(/&X/gi, args.length.toString());
+            
+            // Substitute &1-&9 (arguments, 1-indexed)
+            for (let paramNum = 1; paramNum <= 9; paramNum++) {
+              const pattern = new RegExp(`&${paramNum}`, 'g');
+              const value = paramNum <= args.length ? args[paramNum - 1] : '';
+              expandedLine = expandedLine.replace(pattern, value);
+            }
+            
+            outputLines.push(expandedLine);
+          }
+          
+          i++;
+          continue;
+        }
+      }
+      
+      // Not a macro definition or call, keep the line
+      outputLines.push(line);
+      i++;
+    }
+  }
+  
+  return {
+    sourceWithoutMacros: outputLines.join('\n'),
+    macros,
+  };
 }
 
 // Recursively expand INCLUDE directives
