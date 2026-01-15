@@ -92,4 +92,5 @@ export interface AssemblyArtifact {
   bytes: Uint8Array;
   listing?: string;
   symbols: Record<string, number>;
+  errors?: string[]; // Optional error messages from assembly
 }

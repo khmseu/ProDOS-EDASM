@@ -19,10 +19,18 @@ export function assemble(
 
   // Expand INCLUDE directives
   const basePath = options.basePath || '.';
-  const expandedStatements = expandIncludes(statements, basePath, new Set());
+  const includeErrors: string[] = [];
+  const expandedStatements = expandIncludes(statements, basePath, new Set(), includeErrors);
 
   const assembler = new Assembler(expandedStatements, options);
-  return assembler.assemble();
+  const result = assembler.assemble();
+  
+  // Add include errors to the result if any
+  if (includeErrors.length > 0) {
+    result.errors = [...(result.errors || []), ...includeErrors];
+  }
+  
+  return result;
 }
 
 // Recursively expand INCLUDE directives
@@ -30,6 +38,7 @@ function expandIncludes(
   statements: Statement[],
   basePath: string,
   visitedFiles: Set<string>,
+  errors: string[],
 ): Statement[] {
   const expanded: Statement[] = [];
 
@@ -52,7 +61,7 @@ function expandIncludes(
 
         // Check for circular includes
         if (visitedFiles.has(fullPath)) {
-          // Skip circular includes silently in production
+          errors.push(`Circular include detected: ${fullPath}`);
           continue;
         }
 
@@ -68,12 +77,14 @@ function expandIncludes(
 
           // Recursively expand includes in the included file
           const includedBasePath = path.dirname(fullPath);
-          const expandedIncluded = expandIncludes(includedStatements, includedBasePath, newVisited);
+          const expandedIncluded = expandIncludes(includedStatements, includedBasePath, newVisited, errors);
 
           // Add the expanded statements
           expanded.push(...expandedIncluded);
         } catch (error) {
-          // Include failed - skip silently in production, could add error tracking
+          // Include failed - record error for debugging
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          errors.push(`Failed to include file ${fullPath}: ${errorMsg}`);
         }
       }
     } else {
