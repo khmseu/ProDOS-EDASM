@@ -534,11 +534,26 @@ Bit10       DB     $10
 Bit40       DB     $40
             REP    50
 ;
-; Save zero page locations $60-$F1
+;=================================================
+; SAVE/RESTORE ZERO PAGE
 ;
+; Apple II Language Card Management
+; The Language Card adds 16KB RAM ($D000-$FFFF) that can
+; replace ROM. It has two 4KB banks at $D000-$DFFF.
+;
+; This routine:
+; 1. Enables Language Card Bank 2 for WRITE access
+;    (two successive reads/writes to LCBANK2)
+; 2. Saves zero page $60-$F1 to SvZPArea ($1E00-$1F91)
+; 3. Swaps with saved values (allows restore on next call)
+; 4. Returns to ROM mode (read from RDBANK2)
+;
+; Zero page $60-$F1 contains assembler state that must
+; be preserved when calling external routines
+;=================================================
 SaveZP      LDX    #$92
             BIT    LCBANK2         ;2 successive writes
-            BIT    LCBANK2
+            BIT    LCBANK2         ; enable LC Bank 2 write
 SavLoop     LDA    Z60-1,X
             LDY    SvZPArea-1,X
             STY    Z60-1,X
@@ -1323,8 +1338,20 @@ CodeGen     JSR    GInstLen        ;Determine instr's len
             LDX    #$42+1          ;odd-warning
             JSR    RegAsmEW        ;sw16 opcode
 ;
-; This part is for SW16 ops
+;=================================================
+; SWEET-16 PSEUDO-MACHINE SUPPORT
 ;
+; Sweet-16 is Steve Wozniak's 16-bit pseudo-machine
+; interpreter for the 6502. It provides:
+; - 16 registers (R0-R15) mapped to zero page $00-$1F
+; - 16-bit operations on 8-bit 6502
+; - Efficient pointer manipulation
+;
+; EDASM supports Sweet-16 opcodes when SW16F is set
+; These are pseudo-opcodes for register operations (R0-R15)
+; The assembler validates register numbers and generates
+; appropriate opcodes with register encoding
+;=================================================
             LDX    #$00
 L7FB5       LDA    SubTIdx
             TAY
