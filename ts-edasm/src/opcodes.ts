@@ -243,43 +243,101 @@ export const OPCODES: Record<string, OpcodeInfo> = {
 
 // EDASM assembler directives
 export const DIRECTIVES = new Set([
+  // Origin and constants
   "ORG", // Set origin/address
   "EQU", // Define constant
+  "OBJ", // Object file name/creation
+  
+  // Data directives
   "DA", // Define address (2 bytes)
   "DW", // Define word (2 bytes)
   "DB", // Define byte (1 byte)
   "DFB", // Define byte (1 byte)
+  "DDB", // Define double byte (word, high byte first)
   "ASC", // ASCII string
   "DCI", // Dextral Character Inverted (last char high bit set)
+  "STR", // String with length prefix
   "INV", // Inverse video string
   "FLS", // Flash string
   "REV", // Reverse string
   "HEX", // Hex bytes
   "DS", // Define storage (reserve bytes)
-  "DSK", // Disk image directive
+  
+  // Structure definition
+  "DSECT", // Start data section
+  "DEND", // End data section
+  
+  // MSB control
+  "MSB", // Control MSB for ASCII output
+  
+  // Relocatable/linking
+  "REL", // Relocatable mode
+  "EXTRN", // External reference
+  "ENTRY", // Entry point
+  "EXT", // External reference (alternate)
+  "ENT", // Entry point (alternate)
+  "EXTN", // External reference (alternate)
+  
+  // Conditional assembly
+  "DO", // Conditional do
+  "ELSE", // Conditional else
+  "FIN", // End conditional
+  "IF", // Conditional assembly (alternate)
+  "IFNE", // If not equal
+  "IFEQ", // If equal
+  "IFGT", // If greater than
+  "IFGE", // If greater or equal
+  "IFLT", // If less than
+  "IFLE", // If less or equal
+  
+  // Listing control
   "LST", // Listing control
+  "LIST", // Listing control (alternate)
   "LSTDO", // Listing output control
-  "CHK", // Checksum
-  "PAG", // Page eject
+  "PAGE", // Page eject
   "SKP", // Skip lines
+  "REP", // Repeat character
+  "CHR", // Set repeat character
+  "SBTL", // Subtitle
   "TTL", // Title
+  "PAG", // Page eject (alternate)
+  
+  // File operations
+  "CHN", // Chain source file
+  "INCLUDE", // Include file
+  "MACLIB", // Macro library file
+  "PAUSE", // Manual disk swap
   "SAV", // Save output file
-  "USR", // User routine
-  "PUT", // Include file
-  "USE", // Use macro library
+  "PUT", // Include file (alternate)
+  "USE", // Use macro library (alternate)
+  "DSK", // Disk image directive
+  
+  // Buffer sizing
+  "IBUFSIZ", // Input buffer size
+  "SBUFSIZ", // Source buffer size
+  
+  // Sweet-16 and CPU control
+  "SW16", // Sweet-16 interpreter address
+  "SET", // Sweet-16 register assignment
+  "X6502", // 65C02 opcode control
+  
+  // Timestamp and identification
+  "DATE", // Embed date
+  "TIME", // Embed time
+  "IDNUM", // Identification number
+  
+  // Error control
+  "FAIL", // Conditional error reporting
+  
+  // Macros
   "MAC", // Define macro
   "EOM", // End of macro
   "PMC", // Print macro
   ">>>", // Macro call (alternate form)
-  "IF", // Conditional assembly
-  "ELSE", // Conditional else
-  "FIN", // End conditional
-  "DO", // Conditional do
-  "REL", // Relocatable mode
-  "EXT", // External reference
-  "ENT", // Entry point
-  "EXTN", // External reference (alternate)
-  "EXTRN", // External reference (alternate)
+  
+  // Other
+  "CHK", // Checksum
+  "USR", // User routine
 ]);
 
 export function isOpcode(name: string): boolean {

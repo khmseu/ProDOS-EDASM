@@ -24,11 +24,20 @@ class Assembler {
   private pc: number = 0; // Program counter
   private bytes: number[] = [];
   private errors: string[] = [];
+  private conditionalStack: boolean[] = []; // Stack for tracking conditional assembly state
+  private assemblyEnabled: boolean = true; // Whether we're currently assembling
+  private msbOn: boolean = false; // MSB setting for ASCII output (default OFF for compatibility)
+  private inDsect: boolean = false; // Whether we're inside a DSECT block
 
   constructor(
     private readonly statements: Statement[],
     private readonly options: AssemblerOptions,
-  ) {}
+  ) {
+    // Initialize MSB from options if provided, default is OFF
+    if (options.msbDefaultOn !== undefined) {
+      this.msbOn = options.msbDefaultOn;
+    }
+  }
 
   assemble(): AssemblyArtifact {
     // Pass 1: Build symbol table
@@ -48,20 +57,34 @@ class Assembler {
 
   private passOne(): void {
     this.pc = 0;
+    this.conditionalStack = [];
+    this.assemblyEnabled = true;
 
     for (const stmt of this.statements) {
-      // Define label
-      if (stmt.label) {
-        this.symbols[stmt.label] = this.pc;
+      // Handle conditional directives first
+      if (stmt.directive) {
+        const directive = stmt.directive.toUpperCase();
+        if (this.isConditionalDirective(directive)) {
+          this.processConditionalDirective(directive, stmt, true);
+          continue;
+        }
       }
 
-      // Process directives that affect PC
-      if (stmt.directive) {
-        this.processDirectivePassOne(stmt);
-      } else if (stmt.opcode) {
-        // Calculate instruction size
-        const size = this.calculateInstructionSize(stmt);
-        this.pc += size;
+      // Only process labels and statements if assembly is enabled
+      if (this.assemblyEnabled) {
+        // Define label
+        if (stmt.label) {
+          this.symbols[stmt.label] = this.pc;
+        }
+
+        // Process directives that affect PC
+        if (stmt.directive) {
+          this.processDirectivePassOne(stmt);
+        } else if (stmt.opcode) {
+          // Calculate instruction size
+          const size = this.calculateInstructionSize(stmt);
+          this.pc += size;
+        }
       }
     }
   }
@@ -69,12 +92,26 @@ class Assembler {
   private passTwo(): void {
     this.pc = 0;
     this.bytes = [];
+    this.conditionalStack = [];
+    this.assemblyEnabled = true;
 
     for (const stmt of this.statements) {
+      // Handle conditional directives first
       if (stmt.directive) {
-        this.processDirectivePassTwo(stmt);
-      } else if (stmt.opcode) {
-        this.emitInstruction(stmt);
+        const directive = stmt.directive.toUpperCase();
+        if (this.isConditionalDirective(directive)) {
+          this.processConditionalDirective(directive, stmt, false);
+          continue;
+        }
+      }
+
+      // Only emit code if assembly is enabled
+      if (this.assemblyEnabled) {
+        if (stmt.directive) {
+          this.processDirectivePassTwo(stmt);
+        } else if (stmt.opcode) {
+          this.emitInstruction(stmt);
+        }
       }
     }
   }
@@ -97,6 +134,7 @@ class Assembler {
 
       case "DA":
       case "DW":
+      case "DDB":
         this.pc += 2;
         break;
 
@@ -104,12 +142,34 @@ class Assembler {
       case "DFB":
         this.pc += 1;
         break;
+      
+      case "STR":
+        if (stmt.operand && stmt.operand.kind === "symbol") {
+          // String with length prefix (1 byte length + string bytes)
+          const str = stmt.operand.name;
+          const len = str.length - 2; // Remove quotes
+          if (len > 255) {
+            this.errors.push(`String too long for STR directive (max 255 characters): ${len} characters`);
+          }
+          this.pc += 1 + len; // Length byte + string bytes
+        }
+        break;
 
       case "DS":
         if (stmt.operand) {
           const count = this.evaluateExpression(stmt.operand);
           this.pc += count;
         }
+        break;
+      
+      case "DSECT":
+        // Start data section - defines structure without emitting bytes
+        this.inDsect = true;
+        break;
+      
+      case "DEND":
+        // End data section
+        this.inDsect = false;
         break;
 
       case "ASC":
@@ -156,6 +216,15 @@ class Assembler {
           this.emitWord(value);
         }
         break;
+      
+      case "DDB":
+        // Double byte: high byte first, then low byte (reverse of DW)
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.emitByte((value >> 8) & 0xff); // High byte first
+          this.emitByte(value & 0xff); // Low byte second
+        }
+        break;
 
       case "DB":
       case "DFB":
@@ -173,16 +242,51 @@ class Assembler {
           }
         }
         break;
+      
+      case "DSECT":
+        // Start data section - defines structure without emitting bytes
+        this.inDsect = true;
+        break;
+      
+      case "DEND":
+        // End data section
+        this.inDsect = false;
+        break;
 
       case "ASC":
         if (stmt.operand && stmt.operand.kind === "symbol") {
-          this.emitString(stmt.operand.name, false);
+          this.emitString(stmt.operand.name, false, this.msbOn);
         }
         break;
 
       case "DCI":
         if (stmt.operand && stmt.operand.kind === "symbol") {
-          this.emitString(stmt.operand.name, true);
+          this.emitString(stmt.operand.name, true, false);
+        }
+        break;
+      
+      case "STR":
+        // String with length prefix: emit length byte followed by string
+        if (stmt.operand && stmt.operand.kind === "symbol") {
+          const content = stmt.operand.name.substring(1, stmt.operand.name.length - 1);
+          if (content.length > 255) {
+            this.errors.push(`String too long for STR directive (max 255 characters): ${content.length} characters`);
+          }
+          this.emitByte(content.length & 0xff); // Length prefix (truncate if > 255)
+          this.emitString(stmt.operand.name, false, this.msbOn); // String bytes with MSB setting
+        }
+        break;
+      
+      case "MSB":
+        // MSB directive: control high bit for ASCII output
+        // MSB ON (or MSB with no operand) sets high bit
+        // MSB OFF clears high bit
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.msbOn = value !== 0;
+        } else {
+          // No operand means ON
+          this.msbOn = true;
         }
         break;
 
@@ -382,7 +486,10 @@ class Assembler {
   }
 
   private emitByte(value: number): void {
-    this.bytes.push(value & 0xff);
+    // In DSECT mode, don't emit bytes but still increment PC
+    if (!this.inDsect) {
+      this.bytes.push(value & 0xff);
+    }
     this.pc++;
   }
 
@@ -391,16 +498,24 @@ class Assembler {
     this.emitByte((value >> 8) & 0xff); // High byte
   }
 
-  private emitString(str: string, invertLast: boolean): void {
+  private emitString(str: string, invertLast: boolean, applyMSB: boolean = false): void {
     // Remove quotes
     const content = str.substring(1, str.length - 1);
 
     for (let i = 0; i < content.length; i++) {
       let byte = content.charCodeAt(i);
+      
+      // Apply MSB setting if requested (for ASC and STR directives)
+      if (applyMSB) {
+        byte |= 0x80;
+      }
+      
       // DCI: invert (set high bit) on last character
+      // Note: DCI always sets high bit on last char, regardless of MSB setting
       if (invertLast && i === content.length - 1) {
         byte |= 0x80;
       }
+      
       this.emitByte(byte);
     }
   }
@@ -411,6 +526,101 @@ class Assembler {
     for (let i = 0; i < clean.length; i += 2) {
       const byte = parseInt(clean.substring(i, i + 2), 16);
       this.emitByte(byte);
+    }
+  }
+
+  private isConditionalDirective(directive: string): boolean {
+    return ["DO", "IF", "IFNE", "IFEQ", "IFGT", "IFGE", "IFLT", "IFLE", "ELSE", "FIN"].includes(directive);
+  }
+  
+  private toSigned16(value: number): number {
+    // Convert unsigned 16-bit value to signed 16-bit
+    return value > 32767 ? value - 65536 : value;
+  }
+
+  private processConditionalDirective(directive: string, stmt: Statement, isPassOne: boolean): void {
+    switch (directive) {
+      case "DO":
+      case "IF":
+        // DO/IF: Start conditional block, evaluate expression
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (value !== 0);
+        }
+        break;
+
+      case "IFNE":
+        // If not equal (to zero)
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (value !== 0);
+        }
+        break;
+
+      case "IFEQ":
+        // If equal (to zero)
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (value === 0);
+        }
+        break;
+
+      case "IFGT":
+        // If greater than zero
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (value > 0);
+        }
+        break;
+
+      case "IFGE":
+        // If greater or equal to zero
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (value >= 0);
+        }
+        break;
+
+      case "IFLT":
+        // If less than zero (treating as signed 16-bit)
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          const signed = this.toSigned16(value);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (signed < 0);
+        }
+        break;
+
+      case "IFLE":
+        // If less or equal to zero (treating as signed 16-bit)
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          const signed = this.toSigned16(value);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (signed <= 0);
+        }
+        break;
+
+      case "ELSE":
+        // ELSE: Toggle assembly state within current conditional block
+        if (this.conditionalStack.length > 0) {
+          const parentState = this.conditionalStack[this.conditionalStack.length - 1];
+          // Toggle: if we were assembling, stop; if we weren't, check if parent allows
+          this.assemblyEnabled = parentState && !this.assemblyEnabled;
+        }
+        break;
+
+      case "FIN":
+        // FIN: End conditional block, restore previous state
+        if (this.conditionalStack.length > 0) {
+          this.assemblyEnabled = this.conditionalStack.pop()!;
+        }
+        break;
     }
   }
 
