@@ -1,17 +1,17 @@
 {
-    "name": "ts-edasm",
-    "version": "0.1.0",
-    "private": true,
-    "type": "module",
-    "description": "TypeScript reimplementation of the PRODOS Assembler Tools assembler (EDASM).",
-    "license": "MIT",
-    "scripts": {
-        "build": "tsc -p .",
-        "watch": "tsc -p . --watch",
-        "test": "npm run build && tsc src/test-suite.ts --module NodeNext --moduleResolution NodeNext --target ES2020 --lib ES2020 --outDir dist && node dist/test-suite.js"
-    },
-    "devDependencies": {
-        "@types/node": "^25.0.8",
-        "typescript": "^5.3.0"
-    }
+  "name": "ts-edasm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript reimplementation of the PRODOS Assembler Tools assembler (EDASM).",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p .",
+    "watch": "tsc -p . --watch",
+    "test": "npm run build && tsc src/test-suite.ts --module NodeNext --moduleResolution NodeNext --target ES2020 --lib ES2020 --outDir dist && node dist/test-suite.js"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.8",
+    "typescript": "^5.3.0"
+  }
 }

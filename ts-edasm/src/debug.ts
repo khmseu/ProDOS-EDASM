@@ -24,7 +24,9 @@ for (let i = 0; i < statements.length; i++) {
   console.log(`  Label: ${stmt.label || "(none)"}`);
   console.log(`  Opcode: ${stmt.opcode || "(none)"}`);
   console.log(`  Directive: ${stmt.directive || "(none)"}`);
-  console.log(`  Operand: ${stmt.operand ? JSON.stringify(stmt.operand) : "none"}`);
+  console.log(
+    `  Operand: ${stmt.operand ? JSON.stringify(stmt.operand) : "none"}`,
+  );
   console.log(`  Addressing: ${stmt.addressing || "none"}`);
   console.log(`  Comment: ${stmt.comment || "none"}`);
   console.log();

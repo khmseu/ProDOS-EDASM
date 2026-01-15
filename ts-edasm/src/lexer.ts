@@ -163,7 +163,10 @@ export class Lexer {
       while (this.isHexDigit(this.peek())) {
         this.advance();
       }
-    } else if (this.peek() === "%" || this.peek() === "0" && this.peekNext() === "b") {
+    } else if (
+      this.peek() === "%" ||
+      (this.peek() === "0" && this.peekNext() === "b")
+    ) {
       // Binary number (%xxxxxxxx or 0bxxxxxxxx)
       if (this.peek() === "%") {
         this.advance();
@@ -239,7 +242,9 @@ export class Lexer {
   }
 
   private isHexDigit(ch: string): boolean {
-    return this.isDigit(ch) || (ch >= "a" && ch <= "f") || (ch >= "A" && ch <= "F");
+    return (
+      this.isDigit(ch) || (ch >= "a" && ch <= "f") || (ch >= "A" && ch <= "F")
+    );
   }
 
   private isAlphaNumeric(ch: string): boolean {

@@ -37,24 +37,30 @@ try {
   // Verify expected output
   console.log("\nVerification:");
   const expected = [
-    0xa9, 0x00, // LDA #$00
-    0x8d, 0x00, 0x20, // STA $2000
+    0xa9,
+    0x00, // LDA #$00
+    0x8d,
+    0x00,
+    0x20, // STA $2000
     0xe8, // INX
-    0xd0, 0xf8, // BNE (relative -8)
+    0xd0,
+    0xf8, // BNE (relative -8)
     0x60, // RTS
   ];
 
   let passed = true;
   let details = [];
-  
+
   if (result.bytes.length !== expected.length) {
-    details.push(`  ❌ Length mismatch: expected ${expected.length} bytes, got ${result.bytes.length}`);
+    details.push(
+      `  ❌ Length mismatch: expected ${expected.length} bytes, got ${result.bytes.length}`,
+    );
     passed = false;
   } else {
     for (let i = 0; i < expected.length; i++) {
       if (result.bytes[i] !== expected[i]) {
         details.push(
-          `  ❌ Byte ${i}: expected $${expected[i].toString(16).toUpperCase()}, got $${result.bytes[i].toString(16).toUpperCase()}`
+          `  ❌ Byte ${i}: expected $${expected[i].toString(16).toUpperCase()}, got $${result.bytes[i].toString(16).toUpperCase()}`,
         );
         passed = false;
       }
@@ -68,7 +74,7 @@ try {
       console.log(detail);
     }
   }
-  
+
   console.log("\nExpected bytes:");
   const expectedHex = expected
     .map((b) => b.toString(16).padStart(2, "0").toUpperCase())

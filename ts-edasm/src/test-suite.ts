@@ -69,13 +69,15 @@ for (const test of tests) {
     if (result.bytes.length !== test.expected.length) {
       console.log(`❌ FAILED`);
       console.log(
-        `  Length mismatch: expected ${test.expected.length}, got ${result.bytes.length}`
+        `  Length mismatch: expected ${test.expected.length}, got ${result.bytes.length}`,
       );
       console.log(
-        `  Expected: ${test.expected.map((b) => b.toString(16).padStart(2, "0")).join(" ")}`
+        `  Expected: ${test.expected.map((b) => b.toString(16).padStart(2, "0")).join(" ")}`,
       );
       console.log(
-        `  Got:      ${Array.from(result.bytes).map((b) => b.toString(16).padStart(2, "0")).join(" ")}`
+        `  Got:      ${Array.from(result.bytes)
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join(" ")}`,
       );
       failed++;
       continue;
@@ -86,13 +88,15 @@ for (const test of tests) {
       if (result.bytes[i] !== test.expected[i]) {
         console.log(`❌ FAILED`);
         console.log(
-          `  Byte ${i} mismatch: expected $${test.expected[i].toString(16).padStart(2, "0")}, got $${result.bytes[i].toString(16).padStart(2, "0")}`
+          `  Byte ${i} mismatch: expected $${test.expected[i].toString(16).padStart(2, "0")}, got $${result.bytes[i].toString(16).padStart(2, "0")}`,
         );
         console.log(
-          `  Expected: ${test.expected.map((b) => b.toString(16).padStart(2, "0")).join(" ")}`
+          `  Expected: ${test.expected.map((b) => b.toString(16).padStart(2, "0")).join(" ")}`,
         );
         console.log(
-          `  Got:      ${Array.from(result.bytes).map((b) => b.toString(16).padStart(2, "0")).join(" ")}`
+          `  Got:      ${Array.from(result.bytes)
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join(" ")}`,
         );
         testPassed = false;
         break;
@@ -112,7 +116,9 @@ for (const test of tests) {
   }
 }
 
-console.log(`\nResults: ${passed} passed, ${failed} failed out of ${tests.length} tests`);
+console.log(
+  `\nResults: ${passed} passed, ${failed} failed out of ${tests.length} tests`,
+);
 
 if (failed > 0) {
   process.exit(1);

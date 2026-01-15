@@ -33,14 +33,18 @@ console.log(`Load address: $0300\n`);
 
 console.log("Symbol table:");
 for (const [name, value] of Object.entries(result.symbols)) {
-  console.log(`  ${name.padEnd(10)} = $${value.toString(16).padStart(4, "0").toUpperCase()}`);
+  console.log(
+    `  ${name.padEnd(10)} = $${value.toString(16).padStart(4, "0").toUpperCase()}`,
+  );
 }
 
 console.log("\nMachine code:");
 let addr = 0x0300;
 for (let i = 0; i < result.bytes.length; i += 8) {
   const bytes = Array.from(result.bytes.slice(i, i + 8));
-  const hex = bytes.map((b) => b.toString(16).padStart(2, "0").toUpperCase()).join(" ");
+  const hex = bytes
+    .map((b) => b.toString(16).padStart(2, "0").toUpperCase())
+    .join(" ");
   console.log(`  ${addr.toString(16).padStart(4, "0").toUpperCase()}: ${hex}`);
   addr += bytes.length;
 }

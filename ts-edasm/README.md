@@ -72,7 +72,9 @@ node dist/test-suite.js
 ## Supported Features
 
 ### Instructions
+
 All 6502 instructions with appropriate addressing modes:
+
 - Arithmetic: ADC, SBC
 - Logical: AND, ORA, EOR
 - Shifts/Rotates: ASL, LSR, ROL, ROR
@@ -87,6 +89,7 @@ All 6502 instructions with appropriate addressing modes:
 - Other: BIT, BRK, NOP
 
 ### Directives
+
 - ORG: Set origin address
 - EQU: Define constant
 - DB/DFB: Define byte
@@ -97,14 +100,16 @@ All 6502 instructions with appropriate addressing modes:
 - DS: Define storage (reserve bytes)
 
 ### Expression Syntax
+
 - Decimal: 123
 - Hexadecimal: $7F or 0xFF
 - Binary: %10101010 or 0b10101010
-- Operators: +, -, *, / (left-to-right evaluation)
+- Operators: +, -, \*, / (left-to-right evaluation)
 - Low byte: < (in immediate mode: #<VALUE)
 - High byte: > (in immediate mode: #>VALUE)
 
 ### Addressing Modes
+
 - Implied: NOP
 - Accumulator: ASL A
 - Immediate: LDA #$00

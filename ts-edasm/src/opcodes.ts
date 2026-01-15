@@ -243,43 +243,43 @@ export const OPCODES: Record<string, OpcodeInfo> = {
 
 // EDASM assembler directives
 export const DIRECTIVES = new Set([
-  "ORG",    // Set origin/address
-  "EQU",    // Define constant
-  "DA",     // Define address (2 bytes)
-  "DW",     // Define word (2 bytes)
-  "DB",     // Define byte (1 byte)
-  "DFB",    // Define byte (1 byte)
-  "ASC",    // ASCII string
-  "DCI",    // Dextral Character Inverted (last char high bit set)
-  "INV",    // Inverse video string
-  "FLS",    // Flash string
-  "REV",    // Reverse string
-  "HEX",    // Hex bytes
-  "DS",     // Define storage (reserve bytes)
-  "DSK",    // Disk image directive
-  "LST",    // Listing control
-  "LSTDO",  // Listing output control
-  "CHK",    // Checksum
-  "PAG",    // Page eject
-  "SKP",    // Skip lines
-  "TTL",    // Title
-  "SAV",    // Save output file
-  "USR",    // User routine
-  "PUT",    // Include file
-  "USE",    // Use macro library
-  "MAC",    // Define macro
-  "EOM",    // End of macro
-  "PMC",    // Print macro
-  ">>>",    // Macro call (alternate form)
-  "IF",     // Conditional assembly
-  "ELSE",   // Conditional else
-  "FIN",    // End conditional
-  "DO",     // Conditional do
-  "REL",    // Relocatable mode
-  "EXT",    // External reference
-  "ENT",    // Entry point
-  "EXTN",   // External reference (alternate)
-  "EXTRN",  // External reference (alternate)
+  "ORG", // Set origin/address
+  "EQU", // Define constant
+  "DA", // Define address (2 bytes)
+  "DW", // Define word (2 bytes)
+  "DB", // Define byte (1 byte)
+  "DFB", // Define byte (1 byte)
+  "ASC", // ASCII string
+  "DCI", // Dextral Character Inverted (last char high bit set)
+  "INV", // Inverse video string
+  "FLS", // Flash string
+  "REV", // Reverse string
+  "HEX", // Hex bytes
+  "DS", // Define storage (reserve bytes)
+  "DSK", // Disk image directive
+  "LST", // Listing control
+  "LSTDO", // Listing output control
+  "CHK", // Checksum
+  "PAG", // Page eject
+  "SKP", // Skip lines
+  "TTL", // Title
+  "SAV", // Save output file
+  "USR", // User routine
+  "PUT", // Include file
+  "USE", // Use macro library
+  "MAC", // Define macro
+  "EOM", // End of macro
+  "PMC", // Print macro
+  ">>>", // Macro call (alternate form)
+  "IF", // Conditional assembly
+  "ELSE", // Conditional else
+  "FIN", // End conditional
+  "DO", // Conditional do
+  "REL", // Relocatable mode
+  "EXT", // External reference
+  "ENT", // Entry point
+  "EXTN", // External reference (alternate)
+  "EXTRN", // External reference (alternate)
 ]);
 
 export function isOpcode(name: string): boolean {

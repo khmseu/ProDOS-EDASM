@@ -77,12 +77,22 @@ export class Parser {
     }
 
     // Parse operand and determine addressing mode
-    if (opcode && !this.check("eol") && !this.check("comment") && !this.check("eof")) {
+    if (
+      opcode &&
+      !this.check("eol") &&
+      !this.check("comment") &&
+      !this.check("eof")
+    ) {
       const result = this.parseOperandWithAddressing();
       operand = result.operand;
       addressing = result.addressing;
       statementTokens.push(...result.tokens);
-    } else if (directive && !this.check("eol") && !this.check("comment") && !this.check("eof")) {
+    } else if (
+      directive &&
+      !this.check("eol") &&
+      !this.check("comment") &&
+      !this.check("eof")
+    ) {
       const result = this.parseExpression();
       operand = result.expr;
       statementTokens.push(...result.tokens);
@@ -136,7 +146,11 @@ export class Parser {
       addressing = "immediate";
 
       // Check for low/high byte extraction
-      if (this.check("operator") && (this.currentToken().lexeme === "<" || this.currentToken().lexeme === ">")) {
+      if (
+        this.check("operator") &&
+        (this.currentToken().lexeme === "<" ||
+          this.currentToken().lexeme === ">")
+      ) {
         const op = this.currentToken().lexeme;
         tokens.push(this.advance());
         const result = this.parseExpression();
@@ -214,7 +228,10 @@ export class Parser {
     let expr = this.parsePrimary(tokens);
 
     // Left-to-right evaluation (EDASM style)
-    while (this.check("operator") && this.isBinaryOp(this.currentToken().lexeme)) {
+    while (
+      this.check("operator") &&
+      this.isBinaryOp(this.currentToken().lexeme)
+    ) {
       const opToken = this.advance();
       tokens.push(opToken);
       const right = this.parsePrimary(tokens);
@@ -259,7 +276,10 @@ export class Parser {
     }
 
     // Unary operators (< for low byte, > for high byte)
-    if (this.check("operator") && (this.currentToken().lexeme === "<" || this.currentToken().lexeme === ">")) {
+    if (
+      this.check("operator") &&
+      (this.currentToken().lexeme === "<" || this.currentToken().lexeme === ">")
+    ) {
       const opToken = this.advance();
       tokens.push(opToken);
       const operand = this.parsePrimary(tokens);

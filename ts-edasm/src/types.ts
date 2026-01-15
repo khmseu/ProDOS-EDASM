@@ -60,7 +60,10 @@ export interface ExpressionBinary {
   pos: SourcePosition;
 }
 
-export type Expression = ExpressionLiteral | ExpressionSymbol | ExpressionBinary;
+export type Expression =
+  | ExpressionLiteral
+  | ExpressionSymbol
+  | ExpressionBinary;
 
 export interface Statement {
   label?: string;

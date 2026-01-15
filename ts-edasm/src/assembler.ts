@@ -1,11 +1,16 @@
 import { Parser } from "./parser.js";
-import { AssemblerOptions, AssemblyArtifact, Statement, Expression } from "./types.js";
+import {
+  AssemblerOptions,
+  AssemblyArtifact,
+  Statement,
+  Expression,
+} from "./types.js";
 import { getOpcode, isDirective } from "./opcodes.js";
 
 // Two-pass assembler for EDASM compatibility
 export function assemble(
   source: string,
-  options: AssemblerOptions = {}
+  options: AssemblerOptions = {},
 ): AssemblyArtifact {
   const parser = new Parser(source);
   const { statements } = parser.parse();
@@ -22,7 +27,7 @@ class Assembler {
 
   constructor(
     private readonly statements: Statement[],
-    private readonly options: AssemblerOptions
+    private readonly options: AssemblerOptions,
   ) {}
 
   assemble(): AssemblyArtifact {
@@ -199,9 +204,16 @@ class Assembler {
     let addressing = stmt.addressing || "implied";
 
     // Branch instructions use immediate mode but with relative addressing
-    const isBranch = ["BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS"].includes(
-      stmt.opcode!.toUpperCase()
-    );
+    const isBranch = [
+      "BCC",
+      "BCS",
+      "BEQ",
+      "BMI",
+      "BNE",
+      "BPL",
+      "BVC",
+      "BVS",
+    ].includes(stmt.opcode!.toUpperCase());
 
     // For branch instructions, convert absolute/zeropage to immediate
     if (isBranch && (addressing === "absolute" || addressing === "zeropage")) {
@@ -209,15 +221,27 @@ class Assembler {
     }
 
     // Determine if we should use zeropage addressing
-    if (stmt.operand && !isBranch && (addressing === "absolute" || addressing === "absolute-x" || addressing === "absolute-y")) {
+    if (
+      stmt.operand &&
+      !isBranch &&
+      (addressing === "absolute" ||
+        addressing === "absolute-x" ||
+        addressing === "absolute-y")
+    ) {
       const value = this.evaluateExpression(stmt.operand);
       if (value >= 0 && value < 256) {
         // Convert to zeropage addressing if available
         if (addressing === "absolute" && opcodeInfo.modes["zeropage"]) {
           addressing = "zeropage";
-        } else if (addressing === "absolute-x" && opcodeInfo.modes["zeropage-x"]) {
+        } else if (
+          addressing === "absolute-x" &&
+          opcodeInfo.modes["zeropage-x"]
+        ) {
           addressing = "zeropage-x";
-        } else if (addressing === "absolute-y" && opcodeInfo.modes["zeropage-y"]) {
+        } else if (
+          addressing === "absolute-y" &&
+          opcodeInfo.modes["zeropage-y"]
+        ) {
           addressing = "zeropage-y";
         }
       }
@@ -226,7 +250,7 @@ class Assembler {
     const opcode = opcodeInfo.modes[addressing];
     if (opcode === undefined) {
       this.errors.push(
-        `Invalid addressing mode ${addressing} for opcode ${stmt.opcode}`
+        `Invalid addressing mode ${addressing} for opcode ${stmt.opcode}`,
       );
       return;
     }
@@ -283,9 +307,16 @@ class Assembler {
     const addressing = stmt.addressing || "implied";
 
     // Branch instructions are always 2 bytes (opcode + relative offset)
-    const isBranch = ["BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS"].includes(
-      stmt.opcode!.toUpperCase()
-    );
+    const isBranch = [
+      "BCC",
+      "BCS",
+      "BEQ",
+      "BMI",
+      "BNE",
+      "BPL",
+      "BVC",
+      "BVS",
+    ].includes(stmt.opcode!.toUpperCase());
     if (isBranch) {
       return 2;
     }
