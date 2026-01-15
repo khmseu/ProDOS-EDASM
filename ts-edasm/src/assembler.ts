@@ -148,6 +148,9 @@ class Assembler {
           // String with length prefix (1 byte length + string bytes)
           const str = stmt.operand.name;
           const len = str.length - 2; // Remove quotes
+          if (len > 255) {
+            this.errors.push(`String too long for STR directive (max 255 characters): ${len} characters`);
+          }
           this.pc += 1 + len; // Length byte + string bytes
         }
         break;
@@ -266,7 +269,10 @@ class Assembler {
         // String with length prefix: emit length byte followed by string
         if (stmt.operand && stmt.operand.kind === "symbol") {
           const content = stmt.operand.name.substring(1, stmt.operand.name.length - 1);
-          this.emitByte(content.length); // Length prefix
+          if (content.length > 255) {
+            this.errors.push(`String too long for STR directive (max 255 characters): ${content.length} characters`);
+          }
+          this.emitByte(content.length & 0xff); // Length prefix (truncate if > 255)
           this.emitString(stmt.operand.name, false, this.msbOn); // String bytes with MSB setting
         }
         break;
@@ -526,6 +532,11 @@ class Assembler {
   private isConditionalDirective(directive: string): boolean {
     return ["DO", "IF", "IFNE", "IFEQ", "IFGT", "IFGE", "IFLT", "IFLE", "ELSE", "FIN"].includes(directive);
   }
+  
+  private toSigned16(value: number): number {
+    // Convert unsigned 16-bit value to signed 16-bit
+    return value > 32767 ? value - 65536 : value;
+  }
 
   private processConditionalDirective(directive: string, stmt: Statement, isPassOne: boolean): void {
     switch (directive) {
@@ -579,7 +590,7 @@ class Assembler {
         // If less than zero (treating as signed 16-bit)
         if (stmt.operand) {
           const value = this.evaluateExpression(stmt.operand);
-          const signed = value > 32767 ? value - 65536 : value;
+          const signed = this.toSigned16(value);
           this.conditionalStack.push(this.assemblyEnabled);
           this.assemblyEnabled = this.assemblyEnabled && (signed < 0);
         }
@@ -589,7 +600,7 @@ class Assembler {
         // If less or equal to zero (treating as signed 16-bit)
         if (stmt.operand) {
           const value = this.evaluateExpression(stmt.operand);
-          const signed = value > 32767 ? value - 65536 : value;
+          const signed = this.toSigned16(value);
           this.conditionalStack.push(this.assemblyEnabled);
           this.assemblyEnabled = this.assemblyEnabled && (signed <= 0);
         }

@@ -7,12 +7,15 @@ TypeScript reimplementation of the EDASM assembler from the PRODOS Assembler Too
 ✅ **Core assembler implemented** - The assembler is functional with the following features:
 
 - Complete 6502 instruction set with all addressing modes
-- EDASM assembler directives (ORG, EQU, DB/DFB, DW/DA, ASC, DCI, HEX, DS)
+- EDASM assembler directives (ORG, EQU, DB/DFB, DW/DA, DDB, ASC, DCI, STR, HEX, DS, DSECT/DEND, MSB)
+- Conditional assembly (DO, IF, ELSE, FIN, IFNE, IFEQ, IFGT, IFGE, IFLT, IFLE)
 - Two-pass assembly (symbol table generation and code emission)
 - Automatic zeropage optimization
 - Relative addressing for branch instructions
 - Left-to-right expression evaluation (EDASM-style)
 - EDASM fielded source format support
+- Structure definitions (DSECT/DEND) without emitting bytes
+- MSB control for ASCII string output
 
 ## Usage
 
@@ -90,14 +93,35 @@ All 6502 instructions with appropriate addressing modes:
 
 ### Directives
 
+**Data Definition:**
 - ORG: Set origin address
 - EQU: Define constant
 - DB/DFB: Define byte
-- DW/DA: Define word (16-bit)
+- DW/DA: Define word (16-bit, little-endian)
+- DDB: Define double byte (16-bit, big-endian)
 - ASC: ASCII string
 - DCI: Dextral Character Inverted (last char with high bit set)
+- STR: String with length prefix (Pascal-style string)
 - HEX: Hex bytes
 - DS: Define storage (reserve bytes)
+
+**Structure Definition:**
+- DSECT: Start data section (defines labels without emitting bytes)
+- DEND: End data section
+
+**Conditional Assembly:**
+- DO/IF: Start conditional block (if expression != 0)
+- ELSE: Conditional else
+- FIN: End conditional block
+- IFNE: If not equal to zero
+- IFEQ: If equal to zero
+- IFGT: If greater than zero
+- IFGE: If greater or equal to zero
+- IFLT: If less than zero
+- IFLE: If less or equal to zero
+
+**Output Control:**
+- MSB: Control high bit for ASCII output (MSB ON/OFF)
 
 ### Expression Syntax
 
@@ -124,8 +148,10 @@ All 6502 instructions with appropriate addressing modes:
 
 ## Next steps
 
-1. Add support for more EDASM directives (LST, SAV, PUT, MAC, etc.)
-2. Implement relocatable output format
-3. Add macro expansion support
-4. Implement conditional assembly (IF/ELSE/FIN)
-5. Add fixtures/tests using samples from ASM sources to verify compatibility.
+1. Implement enhanced listing format (proper field widths, expression results, cycle timing)
+2. Add support for more control directives (PAGE, SKP, REP, CHR, SBTL)
+3. Implement file directives (INCLUDE, MACLIB, CHN)
+4. Add relocatable output format (REL mode with RLD)
+5. Implement macro expansion support
+6. Add EXTRN/ENTRY support for external symbols
+7. Add fixtures/tests using samples from ASM sources to verify compatibility
