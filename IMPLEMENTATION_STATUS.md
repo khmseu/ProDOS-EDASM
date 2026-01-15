@@ -27,6 +27,7 @@ This document analyzes the differences between the TypeScript implementation (ts
 
 - **Decimal Constants**: Default numeric format
 - **Hexadecimal**: `$` prefix (e.g., `$FF`)
+- **Octal**: `@` prefix (e.g., `@777`) ✅
 - **Binary**: `%` prefix and `0b` prefix (e.g., `%10101010`, `0b10101010`)
 - **String Constants**: Single-quoted strings
 - **Operators**: `+`, `-`, `*`, `/` with left-to-right evaluation
@@ -67,6 +68,10 @@ This document analyzes the differences between the TypeScript implementation (ts
 
 - **MSB**: Control high bit for ASCII output (MSB ON/OFF) ✅
 
+#### File Directives
+
+- **INCLUDE**: Include file support with nesting and circular include detection ✅
+
 ### ⚠️ Partially Implemented / Needs Enhancement
 
 #### Listing Format
@@ -92,7 +97,6 @@ This document analyzes the differences between the TypeScript implementation (ts
 #### File Directives
 
 - **CHN**: Chain source file - **NOT IMPLEMENTED**
-- **INCLUDE**: Include file support - **NOT IMPLEMENTED**
 - **MACLIB**: Macro library file - **NOT IMPLEMENTED**
 - **PAUSE**: Manual disk swap - **NOT IMPLEMENTED**
 
@@ -119,10 +123,7 @@ This document analyzes the differences between the TypeScript implementation (ts
 - **FAIL**: Conditional error reporting - **NOT IMPLEMENTED**
 - **SET**: Sweet-16 pseudo-opcode - **NOT IMPLEMENTED**
 
-#### Octal Constants
 
-- **Octal**: `@` prefix (e.g., `@777`) - **NOT IMPLEMENTED**
-  - Note: Spec says octal is supported, but ts-edasm doesn't have it
 
 #### Additional Missing from Spec
 
@@ -134,8 +135,8 @@ Based on the analysis and the spec, here are recommended priorities for implemen
 
 ### High Priority (Core Functionality)
 
-1. **INCLUDE directive**: Essential for modular assembly projects
-2. **Octal constants**: Specified in the language spec
+1. ~~**INCLUDE directive**: Essential for modular assembly projects~~ ✅ **IMPLEMENTED**
+2. ~~**Octal constants**: Specified in the language spec~~ ✅ **IMPLEMENTED**
 3. **Enhanced listing format**: Match the exact field widths and formatting from spec
 4. **Expression results display**: Show 4-digit hex in 3-char field
 
@@ -166,22 +167,24 @@ Current test suite covers:
 - Indexed-indirect addressing `(zp,X)` ✅
 - Indirect-indexed addressing `(zp),Y` ✅
 - Combined PC reference and indexed-indirect ✅
+- INCLUDE directive ✅
+- Octal constants ✅
 
 Need tests for:
 
-- INCLUDE directive
-- Octal constants
 - REL mode output
 - EXTRN/ENTRY symbols
 - Listing format verification
-- File I/O error handling, including full support for program counter references (`*`) and indexed-indirect addressing modes. The main remaining gaps are:
+- File I/O error handling
+- Macro definition and expansion (when implemented)
 
-1. **File inclusion**: INCLUDE directive missing
-2. **Octal constants**: `@` prefix not implemented
-3. **Relocatable output**: REL/EXTRN/ENTRY system not implemented
-4. **Macro system**: Complete macro support missing
-5. **Listing enhancements**: Format needs refinement to match spec exactly
+## Summary
 
-The implementation successfully assembles most EdAsm source files including complex patterns like `EQU *` and `(zp,X)` addressing. It is suitable for many assembly tasks but needs additional features for full compatibility with the EdAsm toolchain, particularly file inclusion and 4. **Listing enhancements**: Format needs refinement to match spec exactly 5. **Octal constants**: Missing from parser
+The implementation successfully supports program counter references (`*`) and indexed-indirect addressing modes. The main remaining gaps are:
 
-The implementation is suitable for simple assembly tasks but needs additional features for compatibility with the full EdAsm source code in the ORG directory, particularly file inclusion and potentially relocatable output support.
+1. **Relocatable output**: REL/EXTRN/ENTRY system not implemented
+2. **Macro system**: Complete macro support missing
+3. **Listing enhancements**: Format needs refinement to match spec exactly
+4. **Advanced directives**: CHN, MACLIB, PAGE, SKP, REP, CHR, SBTL not implemented
+
+The implementation successfully assembles most EdAsm source files including complex patterns like `EQU *` and `(zp,X)` addressing. It is suitable for many assembly tasks but needs additional features for full compatibility with the EdAsm toolchain, particularly relocatable output and macro support.
