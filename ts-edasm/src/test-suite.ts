@@ -77,6 +77,74 @@ VALUE   EQU $FF
 `,
     expected: [0x41, 0xc2], // 'A', 'B' with high bit set (0x42 | 0x80 = 0xC2)
   },
+  {
+    name: "Conditional assembly - DO/FIN (true condition)",
+    source: `
+        ORG $9000
+        DO 1
+        LDA #$01
+        FIN
+        RTS
+`,
+    expected: [0xa9, 0x01, 0x60], // LDA #$01, RTS
+  },
+  {
+    name: "Conditional assembly - DO/FIN (false condition)",
+    source: `
+        ORG $9000
+        DO 0
+        LDA #$01
+        FIN
+        RTS
+`,
+    expected: [0x60], // Only RTS (LDA skipped)
+  },
+  {
+    name: "Conditional assembly - DO/ELSE/FIN",
+    source: `
+        ORG $A000
+        DO 0
+        LDA #$01
+        ELSE
+        LDA #$02
+        FIN
+        RTS
+`,
+    expected: [0xa9, 0x02, 0x60], // LDA #$02, RTS (first LDA skipped)
+  },
+  {
+    name: "Conditional assembly - IFEQ (equal to zero)",
+    source: `
+        ORG $B000
+        IFEQ 0
+        LDA #$FF
+        FIN
+        RTS
+`,
+    expected: [0xa9, 0xff, 0x60], // LDA #$FF, RTS
+  },
+  {
+    name: "Conditional assembly - IFNE (not equal to zero)",
+    source: `
+        ORG $C000
+        IFNE 5
+        LDA #$AA
+        FIN
+        RTS
+`,
+    expected: [0xa9, 0xaa, 0x60], // LDA #$AA, RTS
+  },
+  {
+    name: "Conditional assembly - IFGT (greater than zero)",
+    source: `
+        ORG $D000
+        IFGT 10
+        LDA #$BB
+        FIN
+        RTS
+`,
+    expected: [0xa9, 0xbb, 0x60], // LDA #$BB, RTS
+  },
 ];
 
 console.log("Running EDASM assembler test suite...\n");

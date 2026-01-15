@@ -50,20 +50,34 @@ class Assembler {
 
   private passOne(): void {
     this.pc = 0;
+    this.conditionalStack = [];
+    this.assemblyEnabled = true;
 
     for (const stmt of this.statements) {
-      // Define label
-      if (stmt.label) {
-        this.symbols[stmt.label] = this.pc;
+      // Handle conditional directives first
+      if (stmt.directive) {
+        const directive = stmt.directive.toUpperCase();
+        if (this.isConditionalDirective(directive)) {
+          this.processConditionalDirective(directive, stmt, true);
+          continue;
+        }
       }
 
-      // Process directives that affect PC
-      if (stmt.directive) {
-        this.processDirectivePassOne(stmt);
-      } else if (stmt.opcode) {
-        // Calculate instruction size
-        const size = this.calculateInstructionSize(stmt);
-        this.pc += size;
+      // Only process labels and statements if assembly is enabled
+      if (this.assemblyEnabled) {
+        // Define label
+        if (stmt.label) {
+          this.symbols[stmt.label] = this.pc;
+        }
+
+        // Process directives that affect PC
+        if (stmt.directive) {
+          this.processDirectivePassOne(stmt);
+        } else if (stmt.opcode) {
+          // Calculate instruction size
+          const size = this.calculateInstructionSize(stmt);
+          this.pc += size;
+        }
       }
     }
   }
@@ -71,12 +85,26 @@ class Assembler {
   private passTwo(): void {
     this.pc = 0;
     this.bytes = [];
+    this.conditionalStack = [];
+    this.assemblyEnabled = true;
 
     for (const stmt of this.statements) {
+      // Handle conditional directives first
       if (stmt.directive) {
-        this.processDirectivePassTwo(stmt);
-      } else if (stmt.opcode) {
-        this.emitInstruction(stmt);
+        const directive = stmt.directive.toUpperCase();
+        if (this.isConditionalDirective(directive)) {
+          this.processConditionalDirective(directive, stmt, false);
+          continue;
+        }
+      }
+
+      // Only emit code if assembly is enabled
+      if (this.assemblyEnabled) {
+        if (stmt.directive) {
+          this.processDirectivePassTwo(stmt);
+        } else if (stmt.opcode) {
+          this.emitInstruction(stmt);
+        }
       }
     }
   }
@@ -441,6 +469,96 @@ class Assembler {
     for (let i = 0; i < clean.length; i += 2) {
       const byte = parseInt(clean.substring(i, i + 2), 16);
       this.emitByte(byte);
+    }
+  }
+
+  private isConditionalDirective(directive: string): boolean {
+    return ["DO", "IF", "IFNE", "IFEQ", "IFGT", "IFGE", "IFLT", "IFLE", "ELSE", "FIN"].includes(directive);
+  }
+
+  private processConditionalDirective(directive: string, stmt: Statement, isPassOne: boolean): void {
+    switch (directive) {
+      case "DO":
+      case "IF":
+        // DO/IF: Start conditional block, evaluate expression
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (value !== 0);
+        }
+        break;
+
+      case "IFNE":
+        // If not equal (to zero)
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (value !== 0);
+        }
+        break;
+
+      case "IFEQ":
+        // If equal (to zero)
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (value === 0);
+        }
+        break;
+
+      case "IFGT":
+        // If greater than zero
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (value > 0);
+        }
+        break;
+
+      case "IFGE":
+        // If greater or equal to zero
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (value >= 0);
+        }
+        break;
+
+      case "IFLT":
+        // If less than zero (treating as signed 16-bit)
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          const signed = value > 32767 ? value - 65536 : value;
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (signed < 0);
+        }
+        break;
+
+      case "IFLE":
+        // If less or equal to zero (treating as signed 16-bit)
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          const signed = value > 32767 ? value - 65536 : value;
+          this.conditionalStack.push(this.assemblyEnabled);
+          this.assemblyEnabled = this.assemblyEnabled && (signed <= 0);
+        }
+        break;
+
+      case "ELSE":
+        // ELSE: Toggle assembly state within current conditional block
+        if (this.conditionalStack.length > 0) {
+          const parentState = this.conditionalStack[this.conditionalStack.length - 1];
+          // Toggle: if we were assembling, stop; if we weren't, check if parent allows
+          this.assemblyEnabled = parentState && !this.assemblyEnabled;
+        }
+        break;
+
+      case "FIN":
+        // FIN: End conditional block, restore previous state
+        if (this.conditionalStack.length > 0) {
+          this.assemblyEnabled = this.conditionalStack.pop()!;
+        }
+        break;
     }
   }
 
