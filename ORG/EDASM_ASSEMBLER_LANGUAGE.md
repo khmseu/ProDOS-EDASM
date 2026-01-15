@@ -2,6 +2,34 @@
 
 ## Changelog
 
+### 2026-01-15 - Listing Format Documentation
+**Added comprehensive listing format specification:**
+
+1. **Listing line format structure:**
+   - Complete field-by-field breakdown with character positions and sizes
+   - Program Counter field (5 chars: 4 hex digits + colon)
+   - Generated Code field (12 chars: up to 4 bytes as hex)
+   - Expression Result / Cycle Time field (3 chars: hex value or cycle count)
+   - Line Number field (5 chars: decimal, right-justified)
+   - Source Text field (variable length)
+
+2. **Listing control and indicators:**
+   - Suppressed assembly indicator ('S') for false conditionals
+   - Expression result display format (4-digit hex)
+   - Cycle timing display format (En notation)
+   - Control flag documentation (ListingF, LstCodeF, CondAsmF, LstCyc)
+
+3. **Page formatting details:**
+   - Header format with file number and pathname
+   - Subtitle display (SBTL directive)
+   - Page control directives (PAGE, SKP, REP, CHR)
+
+4. **Complete examples:**
+   - Normal assembly listing with all fields
+   - Expression result display
+   - Cycle timing enabled
+   - Conditional assembly suppression
+
 ### 2026-01-15 - Documentation Update
 **Changes made to align documentation with actual ASM implementation:**
 
@@ -269,6 +297,164 @@ Other directives
 
 ---
 
+## Listing format specification
+
+The assembler produces formatted listings during pass two when listing is enabled (via `LST ON` or by default). The listing format is designed for readability and includes several fields that display the assembled code and source.
+
+### Listing line format
+
+Each assembled line in the listing consists of several fixed-width fields arranged as follows:
+
+**Total line structure (logical format):**
+```
+[PC Field:5][Generated Code:12][ER/Cycles:3][Line#:5][Source Text:variable]
+```
+
+**Field breakdown (character positions and sizes):**
+
+1. **Program Counter (PC) Field** — 5 characters total
+   - Format: `XXXX:` where XXXX is a 4-digit hexadecimal address
+   - Example: `1000:` or `C0A8:`
+   - Printed by `PrtPC` routine
+   - Shows the address where the code/data is assembled
+   - Followed by a colon (`:`) separator
+
+2. **Generated Code Field** — 12 characters total
+   - Contains up to 4 bytes of generated object code
+   - Each byte printed as 2 hex digits
+   - Bytes are separated by spaces when needed
+   - Format: ` XX XX XX XX` (space-prefixed, space-separated)
+   - Examples:
+     - `A9 01` for `LDA #$01` (2 bytes)
+     - `20 00 C0` for `JSR $C000` (3 bytes)
+     - `4C 00 10` for `JMP $1000` (3 bytes)
+   - If fewer than 4 bytes, remaining positions are spaces
+   - Empty when line generates no code (directives, comments)
+   
+3. **Expression Result / Cycle Time Field** — 3 characters total
+   - **Expression Result mode** (default):
+     - Shows 4-digit hex value when the line contains an expression result
+     - Format: `XXXX` (no prefix, at position offset 8 from colon)
+     - Printed when bit 7 of `LstCodeF` is clear (msb=0)
+     - Example: For `EQU $1234`, shows `1234`
+   - **Cycle Time mode** (when enabled):
+     - Shows execution cycle count in parentheses
+     - Format: `(En)` where n is cycle count digit (0-9, or 'E' for ≥16)
+     - Example: `(E5)` for 5 cycles, `(E)` for 16+ cycles
+     - Enabled when `LstCyc` flag bit 7 is set
+   - **Suppressed assembly indicator**:
+     - Shows ` S` followed by spaces when inside false conditional block
+     - Total: 17 characters (space + 'S' + 14 spaces)
+     - Indicates source line was not assembled (conditional assembly)
+
+4. **Line Number Field** — 5 characters
+   - Decimal line number, right-justified with leading spaces
+   - Format: `#####` (up to 5 digits)
+   - Printed by `PrtDecS` routine (converts BCD to decimal string)
+   - Examples: `    1`, `   10`, `  100`, ` 1000`, `99999`
+   - Line numbers increment sequentially for each source line
+   - Separate line numbering maintained for included files
+
+5. **Source Text Field** — variable length
+   - Contains the original source line text
+   - Includes label, opcode, operand, and comment fields
+   - TAB characters expanded according to tab stops (if defined)
+   - Continues to end of line
+   - Maximum line length typically constrained by display width (40 or 80 columns)
+
+### Complete listing line examples
+
+```
+1000: A9 01       1    START LDA #$01      ; Load accumulator
+1002: 8D 00 C0    3          STA $C000      ; Store to I/O
+1005: 4C 00 10    5          JMP START      ; Loop forever
+                  6          END
+```
+
+With expression results:
+```
+                  1          ORG $1000
+1000:       1234  2    VAL   EQU $1234      ; Define constant
+1000: A9 34       3          LDA #<VAL      ; Low byte
+```
+
+With cycle timing enabled:
+```
+1000: A9 01  (E2) 1    START LDA #$01      ; 2 cycles
+1002: 8D 00 C0(E4)2          STA $C000      ; 4 cycles
+```
+
+With conditional assembly (suppressed):
+```
+1000: A9 01       1          LDA #$01
+ S                2          DO 0
+ S                3          LDA #$02       ; Not assembled
+ S                4          FIN
+1002: 60          5          RTS
+```
+
+### Page header format
+
+When listing to a device (screen or printer), each page includes a header:
+
+1. **File number and pathname**
+   - Format: `N PATHNAME` where N is file number (0-9)
+   - Pathname truncated or abbreviated if longer than 16 characters
+   - When truncated, shows substring after last `/` if one exists
+
+2. **Subtitle line** (when `SBTL` directive used)
+   - Contains user-specified subtitle text (up to 35 characters)
+   - Appears as top line on each page
+   - Set via `SBTL Dstring` directive
+   - Remains active until next `SBTL` or end of assembly
+
+3. **Page control**
+   - `PAGE` directive causes form-feed and starts new page
+   - Prints blank line on screen but doesn't appear as listing line
+   - Does not increment line counter
+
+### Listing control flags and behavior
+
+The listing system uses several control flags (from code analysis):
+
+- **ListingF** — Master listing enable flag
+  - Bit 7 set: listing enabled
+  - Bit 7 clear: listing suppressed
+  - Controlled by `LST ON` / `LST OFF` directives
+
+- **LstCodeF** — Code field control flags (bits control printing)
+  - Bit 7: When clear (0), print expression result field
+  - Bit 6-5: Control spacing between code bytes
+  - Bit 4-0: Control which code bytes to print with spaces
+
+- **CondAsmF** — Conditional assembly flag
+  - When bit 7 set and condition false: print `S` indicator
+  - Suppresses actual assembly but shows source line
+
+- **LstCyc** — Cycle timing control
+  - Bit 7 set: print cycle times instead of expression results
+  - Bit 7 clear: normal listing mode
+
+### Listing directives behavior summary
+
+- **LST OFF** at start: suppresses source listing but still prints symbol table
+- **LST OFF** / **LST ON**: dynamically control listing output
+- **PAGE**: ejects page (form-feed), prints blank line on screen
+- **SKP n**: inserts n blank lines in listing
+- **REP n**: prints repeated character n times (default `*`)
+- **CHR c**: sets character for `REP` directive
+- **SBTL string**: sets subtitle for page headers
+
+### Implementation notes for listing generation
+
+1. **Total width**: The code section spans 17 characters (PC:5 + Code:12), leaving room for line number (5) and source text
+2. **Multi-line continuations**: When more than 4 bytes generated, additional bytes appear on subsequent lines without PC or line number
+3. **Expression vs Timing**: The 3-character ER/Cycle field is mutually exclusive - implementations should choose one mode
+4. **Buffer management**: The assembler builds the listing line in memory before output to handle complex formatting
+5. **Device independence**: Listing format remains consistent whether output to screen (40/80-col), printer, or file
+
+---
+
 ## Error handling hints
 - The assembler reports numeric overflow when a numeric expression exceeds 16 bits.
 - CHN of a missing filename causes an OOPS error; disk I/O errors abort assembly.
@@ -345,10 +531,7 @@ FIN
 
 ## Sources
 - Derived from the Apple II Assembler/Editor manual pages in `edasm/*.txt` in this repository (files: `image-031.txt`, `image-033.txt`, `image-036.txt`, `image-037.txt`, `image-038.txt`, `image-044.txt`, `image-045.txt`, `image-046.txt`, `image-047.txt`, `image-048.txt`, `image-051.txt`, `image-063.txt`, etc.).
-
-If you want, I can now:
-- Add a small test-suite (examples from the docs) for use-by the TypeScript implementation.
-- Extend the spec with detail for additional pseduo-ops or runtime behaviors (listing page formats, printer control strings, file slot/drive semantics).
+- Listing format details extracted from original EDASM assembler source code in `ORG/EdAsm-master/EDASM.SRC/ASM/` (specifically `ASM2.S` and `ASM3.S`).
 
 ---
 
