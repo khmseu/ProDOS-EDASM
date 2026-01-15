@@ -62,7 +62,7 @@ export class Lexer {
     }
 
     // Number
-    if (this.isDigit(ch) || (ch === "$" && this.isHexDigit(this.peekNext())) || (ch === "@" && this.isOctalDigit(this.peekNext()))) {
+    if (this.isDigit(ch) || (ch === "$" && this.isHexDigit(this.peekNext())) || (ch === "@" && this.isOctalDigit(this.peekNext())) || (ch === "%" && (this.peekNext() === "0" || this.peekNext() === "1"))) {
       return this.scanNumber();
     }
 

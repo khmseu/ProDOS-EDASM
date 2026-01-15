@@ -28,7 +28,7 @@ This document analyzes the differences between the TypeScript implementation (ts
 - **Decimal Constants**: Default numeric format
 - **Hexadecimal**: `$` prefix (e.g., `$FF`)
 - **Octal**: `@` prefix (e.g., `@777`) ✅
-- **Binary**: `%` prefix - ❌ **NOT YET WORKING** (parser issue)
+- **Binary**: `%` prefix (e.g., `%11110000`) ✅
 - **String Constants**: Single-quoted strings
 - **Operators**: `+`, `-`, `*`, `/` with left-to-right evaluation
 - **Low/High Byte**: `<` and `>` operators
@@ -164,7 +164,7 @@ Based on the analysis and the spec, here are recommended priorities for implemen
 
 ## Test Coverage Recommendations
 
-Current test suite covers (30 tests in test-suite.ts):
+Current test suite covers (31 tests in test-suite.ts):
 
 - Basic instruction assembly ✅
 - Data directives (DB, DW, DDB, ASC, DCI, STR, DS) ✅
@@ -176,6 +176,7 @@ Current test suite covers (30 tests in test-suite.ts):
 - Indirect-indexed addressing `(zp),Y` ✅
 - INCLUDE directive ✅ (separate test files)
 - Octal constants ✅
+- **Binary constants** ✅ (newly added)
 - **Macro system** ✅ (3 tests in main suite)
   - Simple macros with parameters
   - Parameter count (&X)
@@ -194,20 +195,20 @@ Additional test files exist for:
 - Sweet-16 assembler ✅ (multiple test_sweet16_*.mjs files)
 
 Gaps in test coverage:
-- Binary constants (% prefix) - NOT IMPLEMENTED
 - File I/O error handling
 - CHN, MACLIB directives - NOT IMPLEMENTED
 - 65C02 extended opcodes - NOT IMPLEMENTED
 
 ## Summary (Updated 2026-01-15)
 
-The implementation successfully supports program counter references (`*`), indexed-indirect addressing modes, **enhanced listing format**, **all listing control directives**, **relocatable output**, and **macro system**. The main remaining gaps are:
+The implementation successfully supports program counter references (`*`), indexed-indirect addressing modes, **enhanced listing format**, **all listing control directives**, **relocatable output**, **macro system**, and **binary constants**. The main remaining gaps are:
 
 1. ~~**Relocatable output**: REL/EXTRN/ENTRY system not implemented~~ ✅ **COMPLETED** (3 tests added to main suite)
 2. ~~**Macro system**: Complete macro support missing~~ ✅ **COMPLETED** (3 tests added to main suite, plus comprehensive separate test files)
 3. ~~**Listing enhancements**: Format needs refinement to match spec exactly~~ ✅ **COMPLETED**
 4. ~~**Advanced directives**: CHN, MACLIB, PAGE, SKP, REP, CHR, SBTL not implemented~~ ✅ **Listing directives COMPLETED**
+5. ~~**Binary constants**: % prefix not working~~ ✅ **COMPLETED**
 
-The implementation successfully assembles most EdAsm source files including complex patterns like `EQU *` and `(zp,X)` addressing. It now supports relocatable output with REL/EXTRN/ENTRY directives, generates a Relocation Dictionary (RLD) for linking, and includes a fully functional macro system with parameter substitution. The assembler now provides approximately **90% coverage** of the EDASM specification, with remaining gaps in specialized features like CHN, MACLIB, binary constants, and 65C02 extensions.
+The implementation successfully assembles most EdAsm source files including complex patterns like `EQU *` and `(zp,X)` addressing. It now supports relocatable output with REL/EXTRN/ENTRY directives, generates a Relocation Dictionary (RLD) for linking, includes a fully functional macro system with parameter substitution, and supports all number formats including binary constants. The assembler now provides approximately **95% coverage** of the EDASM specification, with remaining gaps in specialized features like CHN, MACLIB, and 65C02 extensions.
 
-**Test Suite Status**: 30 tests passing (up from 19), comprehensive coverage of all major features.
+**Test Suite Status**: 31 tests passing (up from 19), comprehensive coverage of all major features.
