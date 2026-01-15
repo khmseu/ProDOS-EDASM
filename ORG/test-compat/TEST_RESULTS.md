@@ -128,7 +128,38 @@ The header conversion worked perfectly - all files parse correctly with the new 
 
 ## Next Steps
 
-1. Implement `*` program counter reference in parser/expression evaluator
-2. Test SWEET16.S again after fix
+1. ~~Implement `*` program counter reference in parser/expression evaluator~~ ✅ **COMPLETED**
+2. ~~Test SWEET16.S again after fix~~ ✅ **COMPLETED**
 3. Systematically test remaining code files
 4. Document any additional missing features discovered during testing
+
+## New Test Files Added (2026-01-15)
+
+### Tests for Implemented Features ✅
+
+All core features now have comprehensive test coverage:
+
+- **test_octal.mjs** - Octal constants (@prefix) ✅ All tests passing
+- **test_include.mjs** - INCLUDE directive with nesting ✅ All tests passing
+- **test_pc_reference.mjs** - Program counter (*) reference ✅ All tests passing
+- **test_comprehensive.mjs** - Combined PC reference and indexed-indirect ✅ All tests passing
+
+### Tests for Future Implementation 📋
+
+Documentation tests that specify expected behavior for features not yet implemented:
+
+- **test_listing_format.mjs** - Expected listing format (field widths, expression results, cycle timing)
+  - Status: ⚠️ Partially implemented, needs enhancement
+  - Priority: HIGH
+  
+- **test_listing_control.mjs** - Listing control directives (LST, PAGE, SKP, REP, CHR, SBTL)
+  - Status: ⚠️ LST ON/OFF partially working, others not implemented
+  - Priority: MEDIUM
+  
+- **test_macro_system.mjs** - Macro definition and expansion (MACRO, ENDM, &0-&9, &X)
+  - Status: ❌ Not implemented (tests document expected behavior)
+  - Priority: LOW (complex feature)
+  
+- **test_relocatable.mjs** - Relocatable output (REL, EXTRN, ENTRY, RLD, ESD)
+  - Status: ❌ Not implemented (tests document expected behavior)
+  - Priority: MEDIUM (needed for multi-module projects)
