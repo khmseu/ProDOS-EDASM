@@ -118,6 +118,7 @@ class Assembler {
   private listingLines: ListingLine[] = []; // Track listing information
   private listingEnabled: boolean = true; // Whether listing is enabled (LST ON/OFF)
   private currentLineNumber: number = 0; // Current source line number
+  private repeatChar: string = "*"; // Character to use for REP directive
 
   constructor(
     private readonly statements: Statement[],
@@ -447,23 +448,7 @@ class Assembler {
       case "LST":
       case "LSTDO":
         // LST ON/OFF or LSTDO: Control listing output
-        if (stmt.operand) {
-          if (stmt.operand.kind === "symbol") {
-            const operandName = stmt.operand.name.toUpperCase();
-            if (operandName === "ON") {
-              this.listingEnabled = true;
-            } else if (operandName === "OFF") {
-              this.listingEnabled = false;
-            }
-          } else {
-            // Numeric value: 0 = OFF, non-zero = ON
-            const value = this.evaluateExpression(stmt.operand);
-            this.listingEnabled = value !== 0;
-          }
-        } else {
-          // No operand means ON
-          this.listingEnabled = true;
-        }
+        this.listingEnabled = this.evaluateLstDirective(stmt);
         break;
       
       case "PAGE":
@@ -482,8 +467,22 @@ class Assembler {
         break;
       
       case "CHR":
-        // CHR: Set repeat character - will be handled in listing generation
-        // No code generation, just marker for listing
+        // CHR: Set repeat character for REP directive
+        if (stmt.operand && stmt.operand.kind === "symbol") {
+          // Extract the character from the symbol (should be a quoted character)
+          let charStr = stmt.operand.name;
+          if ((charStr.startsWith('"') && charStr.endsWith('"')) ||
+              (charStr.startsWith("'") && charStr.endsWith("'"))) {
+            charStr = charStr.slice(1, -1);
+          }
+          if (charStr.length > 0) {
+            this.repeatChar = charStr[0];
+          }
+        } else if (stmt.operand && stmt.operand.kind === "literal") {
+          // ASCII value of character
+          const asciiValue = this.evaluateExpression(stmt.operand);
+          this.repeatChar = String.fromCharCode(asciiValue);
+        }
         break;
       
       case "SBTL":
@@ -829,6 +828,24 @@ class Assembler {
     }
   }
 
+  private evaluateLstDirective(stmt: Statement): boolean {
+    // Helper method to evaluate LST/LSTDO directive operand
+    // Returns true for ON, false for OFF
+    if (stmt.operand) {
+      if (stmt.operand.kind === "symbol") {
+        const operandName = stmt.operand.name.toUpperCase();
+        return operandName === "ON";
+      } else {
+        // Numeric value: 0 = OFF, non-zero = ON
+        const value = this.evaluateExpression(stmt.operand);
+        return value !== 0;
+      }
+    } else {
+      // No operand means ON
+      return true;
+    }
+  }
+
   private addListingLine(
     stmt: Statement,
     startPC: number,
@@ -885,21 +902,31 @@ class Assembler {
       const line = this.listingLines[i];
       const stmt = this.statements[i];
 
-      // Handle LST ON/OFF directive
+      // Handle listing control directives
       if (stmt.directive) {
         const directive = stmt.directive.toUpperCase();
+        
+        // Handle LST ON/OFF directive
         if (directive === "LST" || directive === "LSTDO") {
-          if (stmt.operand) {
-            if (stmt.operand.kind === "symbol") {
-              const operandName = stmt.operand.name.toUpperCase();
-              listingOutputEnabled = operandName === "ON";
-            } else {
-              const value = this.evaluateExpression(stmt.operand);
-              listingOutputEnabled = value !== 0;
+          listingOutputEnabled = this.evaluateLstDirective(stmt);
+        }
+        
+        // Handle CHR directive - set repeat character
+        if (directive === "CHR") {
+          if (stmt.operand && stmt.operand.kind === "symbol") {
+            let charStr = stmt.operand.name;
+            if ((charStr.startsWith('"') && charStr.endsWith('"')) ||
+                (charStr.startsWith("'") && charStr.endsWith("'"))) {
+              charStr = charStr.slice(1, -1);
             }
-          } else {
-            listingOutputEnabled = true;
+            if (charStr.length > 0) {
+              this.repeatChar = charStr[0];
+            }
+          } else if (stmt.operand && stmt.operand.kind === "literal") {
+            const asciiValue = this.evaluateExpression(stmt.operand);
+            this.repeatChar = String.fromCharCode(asciiValue);
           }
+          continue; // CHR doesn't produce listing output
         }
         
         // Handle PAGE directive - insert form feed
@@ -923,15 +950,9 @@ class Assembler {
         if (directive === "REP") {
           if (stmt.operand) {
             const count = this.evaluateExpression(stmt.operand);
-            // Default character is space, but can be set with CHR
-            const repeatChar = "*"; // TODO: Track CHR setting
-            listing += repeatChar.repeat(count) + "\n";
+            // Use the repeat character set by CHR directive (default is '*')
+            listing += this.repeatChar.repeat(count) + "\n";
           }
-          continue;
-        }
-        
-        // Handle CHR directive - just skip, it sets state for REP
-        if (directive === "CHR") {
           continue;
         }
         
