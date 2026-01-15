@@ -4,9 +4,66 @@ End of file   :   62,315
 This file was generated using the DiskBrowser utility with minimal editing.
 It is meant for viewing purposes only.
 
+;=================================================
+; EDASM ASSEMBLER - DIRECTIVE PROCESSING
 ;
-; EQU directive
+; This module handles all assembler directives (pseudo-ops)
+; that control assembly behavior rather than generate code
 ;
+; Major Directive Categories:
+;
+; 1. SYMBOL DEFINITION
+;    EQU - Define symbolic constant
+;
+; 2. ADDRESS CONTROL
+;    ORG - Set program counter (origin)
+;    OBJ - Set object code memory destination
+;
+; 3. DATA DEFINITION
+;    DB/DFB - Define bytes
+;    DW/DDB - Define words (16-bit values)
+;    DS/.BLOCK - Reserve storage with optional fill
+;    ASC - ASCII strings
+;    DCI - High-bit inverted text (Apple II format)
+;    STR - Strings with length prefix
+;
+; 4. CONDITIONAL ASSEMBLY
+;    DO/IFNE/IFEQ/IFGT/IFGE/IFLT/IFLE - Conditionals
+;    ELSE - Alternate block
+;    FIN - End conditional
+;
+; 5. LISTING CONTROL
+;    LST - Set listing flags
+;    .LIST/.NOLIST - Enable/disable listing
+;    PAGE - Form feed
+;    SBTL - Subtitle
+;    REP/CHR/SKP - Output control
+;
+; 6. LINKING & RELOCATION
+;    REL - Relocatable code mode
+;    DEF/ENTRY - Export symbols
+;    REF/EXTRN - Import symbols
+;    ZDEF/ZREF - Zero-page variants
+;
+; 7. FILE CONTROL
+;    CHN - Chain to another source file
+;    PAUSE - Manual disk swap
+;=================================================
+;
+;=================================================
+; EQU DIRECTIVE
+;
+; Defines a symbolic constant (label = value)
+; The label in the label field is assigned the value
+; of the expression in the operand field
+;
+; Example: MAXVAL  EQU  $FF
+;
+; Pass 1: Marks symbol as defined/undefined
+; Pass 2: Evaluates expression and stores value
+;
+; Cannot use EXTERN symbols in EQU expressions
+;=================================================
 L8A31       LDA    PassNbr
             BNE    L8A41
 ;
@@ -58,13 +115,23 @@ L8A71       ORA    RelExprF
             JMP    DrtvFin
             REP    50
 ;
-; ORG directive
-; At least one ORG must be declared or no object
-; code will be generated. If REL code is to be
-; generated, then the REL directive must precede
-; the ORG directive
-; Ref pg 93 on rel ORG
+;=================================================
+; ORG DIRECTIVE
 ;
+; Sets the origin (program counter) for code generation
+; Syntax: ORG expression
+;
+; Two modes:
+; 1. Absolute ORG: Sets PC to specified address
+; 2. Relocatable ORG: Used with REL directive
+;    Must be > $100 for REL files
+;
+; At least one ORG required for code generation
+; For REL files, REL directive must precede ORG
+;
+; Pass 2: Flushes object code buffer before changing PC
+; Ref pg 93 on rel ORG
+;=================================================
 L8A82       JSR    EvalOprnd
             BCS    L8A50
             LDA    NxtToken        ;Is sp/cr?
@@ -243,17 +310,24 @@ L8BA9       CLC
 L8BAB       SEC
             RTS
             REP    50
-; OBJ directive
-; This directive cannot be used in conjunction with
-; REL directive. To store object code directly into
-; mem, do ASM srcfile,@ and have the following
-; src statements
-;  ORG $1000 ;optional
-;  OBJ $6000
-; at the beginning of file
-; Normally sym table is $0800-$7000
-; Ref pg 96
+;=================================================
+; OBJ DIRECTIVE
 ;
+; Specifies memory location for object code output
+; Syntax: OBJ address
+;
+; Cannot be used with REL directive (mutually exclusive)
+; For memory-resident assembly: ASM srcfile,@
+;
+; Usage:
+;   OBJ $0000  - Suppress code generation
+;   OBJ $6000  - Store object code at $6000
+;
+; Validates that OBJ address doesn't overlap with
+; symbol table (normally $0800-$7000)
+;
+; Ref pg 96
+;=================================================
 L8BAD       LDA    #0
             STA    ValExpr
             STA    ValExpr+1
@@ -314,8 +388,23 @@ EvalOprnd   LDA    PassNbr
             RTS
             REP    50
 ;
-; DS/.BLOCK directive
+;=================================================
+; DS/.BLOCK DIRECTIVE
 ;
+; Reserves storage space with optional fill pattern
+; Syntax: DS count[,fill]
+;
+; count: Number of bytes to reserve (max 16K)
+; fill: Optional byte value to fill space with
+;       If omitted, uses random/uninitialized data
+;
+; Examples:
+;   DS 256        - Reserve 256 bytes
+;   DS 100,$00    - Reserve 100 bytes filled with $00
+;   DS 10,$FF     - Reserve 10 bytes filled with $FF
+;
+; RndF flag: $80=random data, $00=use filler byte
+;=================================================
 L8C0E       JSR    EvalOprnd
             BCS    L8C1D
             JSR    Is16K           ;Is expr's val > 16384?
@@ -1042,11 +1131,29 @@ L90B1       JSR    RegAsmEW
             JMP    DrtvDone
             REP    50
 ;
-; DO & IFNE directive-marks BO cond asm block
-; CondAsmF
-;  V=1 - false, V=0 - true
-;  N=1 - within Alt blk
+;=================================================
+; CONDITIONAL ASSEMBLY DIRECTIVES
 ;
+; DO/IFNE - Begin conditional block (if not equal to 0)
+; IFEQ - If equal to 0
+; IFGT - If greater than 0
+; IFGE - If greater or equal to 0
+; IFLT - If less than 0
+; IFLE - If less or equal to 0
+; ELSE - Alternate block (optional)
+; FIN - End conditional block
+;
+; CondAsmF state flags:
+;   $00 = Normal assembly (condition true)
+;   $40 = Skip to ELSE/FIN (condition false)
+;   $80 = In ELSE block, skip to FIN
+;   Bit 6 (V): 1=false condition, 0=true
+;   Bit 7 (N): 1=within alternate block
+;
+; Allows conditional assembly based on expression values
+; Useful for platform-specific code or debug builds
+;=================================================
+; DO & IFNE directive-marks BO cond asm block
 L90B7       JSR    EvalOprnd
             BCS    L9123
             LDA    ValExpr
@@ -1124,12 +1231,24 @@ L9112       JSR    EvalOprnd
 L9123       JMP    L9193
             REP    50
 ;
-; REL directive
-; RLD will be cleared when an abs ORG is encountered
-; e.g.
-;  REL
-;  ORG $3000
+;=================================================
+; REL DIRECTIVE
 ;
+; Enables relocatable object code generation
+; Output file type becomes REL instead of BIN
+;
+; Relocatable code can be loaded at any address by
+; the linker. The assembler creates a Relocation
+; Dictionary (RLD) that tracks addresses needing
+; adjustment when code is relocated.
+;
+; Must precede ORG directive
+; RLD cleared when absolute ORG encountered
+;
+; Example:
+;   REL
+;   ORG $3000
+;=================================================
 L9126       SEC
             ROR    RelCodeF        ;msb=1
             LDA    #RELtype
@@ -1151,17 +1270,31 @@ L9139       LDA    #$C0            ;N=1,V=1
             JMP    DrtvDone
             REP    50
 ;
-; ZDEF directive - pg 100-101
+;=================================================
+; SYMBOL EXPORT DIRECTIVES
 ;
+; DEF/ENTRY - Declare global entry point (absolute addr)
+; ZDEF - Zero-page global entry point
+;
+; These directives export symbols for use by the linker
+; Allows other modules to reference symbols defined here
+;
+; GblAbsF: $00=ZDEF/ZREF, $01=DEF/REF
+; SymNbr: Count of ENTRY/EXTRN declarations (max 255)
+;
+; Pass 1: Increments SymNbr, validates label
+; Pass 2: Marks symbol with ENTRY flag
+;
+; Ref pg 100-101
+;=================================================
+; ZDEF directive
 L9140       LDA    #$00
             BEQ    L9146           ;always
 ;
 ; DEF/ENTRY directive
-;
 L9144       LDA    #$01
 ;
 ; Common code
-;
 L9146       STA    GblAbsF
             LDA    PassNbr         ;pass 2
             BNE    L918E
