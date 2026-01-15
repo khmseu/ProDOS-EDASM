@@ -239,7 +239,8 @@ class Assembler {
 
       if (isBranch) {
         // Branch instructions use relative addressing
-        // Calculate offset from next instruction (PC + 2 for branch)
+        // Calculate offset from next instruction (current PC already points past opcode,
+        // and PC + 1 will point past the operand byte we're about to emit)
         const offset = value - (this.pc + 1);
         // Ensure offset is in range -128 to +127
         if (offset < -128 || offset > 127) {

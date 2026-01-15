@@ -161,9 +161,12 @@ export class Parser {
         // Check for indexed indirect (,Y)
         if (this.check("comma")) {
           tokens.push(this.advance());
-          if (this.check("label") && this.currentToken().lexeme.toUpperCase() === "Y") {
-            tokens.push(this.advance());
-            addressing = "indirect-y";
+          if (this.check("label")) {
+            const token = this.currentToken();
+            if (token && token.lexeme.toUpperCase() === "Y") {
+              tokens.push(this.advance());
+              addressing = "indirect-y";
+            }
           }
         } else {
           addressing = "jmp-indirect";
@@ -180,12 +183,15 @@ export class Parser {
       if (this.check("comma")) {
         tokens.push(this.advance());
         if (this.check("label")) {
-          const index = this.currentToken().lexeme.toUpperCase();
-          tokens.push(this.advance());
-          if (index === "X") {
-            addressing = "absolute-x";
-          } else if (index === "Y") {
-            addressing = "absolute-y";
+          const token = this.currentToken();
+          if (token) {
+            const index = token.lexeme.toUpperCase();
+            tokens.push(this.advance());
+            if (index === "X") {
+              addressing = "absolute-x";
+            } else if (index === "Y") {
+              addressing = "absolute-y";
+            }
           }
         }
       }
