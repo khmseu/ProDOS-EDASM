@@ -62,7 +62,7 @@ export class Lexer {
     }
 
     // Number
-    if (this.isDigit(ch) || (ch === "$" && this.isHexDigit(this.peekNext())) || (ch === "@" && this.isOctalDigit(this.peekNext()))) {
+    if (this.isDigit(ch) || (ch === "$" && this.isHexDigit(this.peekNext())) || (ch === "@" && this.isOctalDigit(this.peekNext())) || (ch === "%" && this.isBinaryDigit(this.peekNext()))) {
       return this.scanNumber();
     }
 
@@ -282,6 +282,10 @@ export class Lexer {
 
   private isOctalDigit(ch: string): boolean {
     return ch >= "0" && ch <= "7";
+  }
+
+  private isBinaryDigit(ch: string): boolean {
+    return ch === "0" || ch === "1";
   }
 
   private isAlphaNumeric(ch: string): boolean {

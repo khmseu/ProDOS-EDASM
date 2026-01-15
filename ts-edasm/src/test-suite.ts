@@ -312,6 +312,16 @@ HERE    EQU *
     expected: [0xa9, 0xff, 0x85, 0x10], // LDA #$FF (@377), STA $10 (@20)
   },
   {
+    name: "Binary constants (%)",
+    source: `
+        ORG $C000
+        LDA #%11110000
+        STA $80
+        LDA #%00001111
+`,
+    expected: [0xa9, 0xf0, 0x85, 0x80, 0xa9, 0x0f], // LDA #$F0 (%11110000), STA $80, LDA #$0F (%00001111)
+  },
+  {
     name: "Multiple macro calls",
     source: `
         ORG $D000
