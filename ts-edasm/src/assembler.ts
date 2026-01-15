@@ -233,6 +233,15 @@ class Assembler {
   private relocationDictionary: Array<{address: number; size: number}> = []; // RLD entries
   private externalSymbols: string[] = []; // EXTRN directive populates this
   private entryPoints: string[] = []; // ENTRY directive populates this
+  
+  // Performance: Pre-computed Sets for O(1) lookups instead of O(n) array.includes()
+  private static readonly BRANCH_OPCODES = new Set([
+    "BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS"
+  ]);
+  
+  private static readonly CONDITIONAL_DIRECTIVES = new Set([
+    "DO", "IF", "IFNE", "IFEQ", "IFGT", "IFGE", "IFLT", "IFLE", "ELSE", "FIN"
+  ]);
 
   constructor(
     private readonly statements: Statement[],
@@ -383,12 +392,16 @@ class Assembler {
       case "DA":
       case "DW":
       case "DDB":
-        this.pc += 2;
+        // These can have comma-separated values (2 bytes each)
+        const wordValues = this.extractNumericValues(stmt);
+        this.pc += (wordValues.length > 0 ? wordValues.length : 1) * 2;
         break;
 
       case "DB":
       case "DFB":
-        this.pc += 1;
+        // DB can have comma-separated values
+        const dbValues = this.extractNumericValues(stmt);
+        this.pc += dbValues.length > 0 ? dbValues.length : 1;
         break;
       
       case "STR":
@@ -478,32 +491,63 @@ class Assembler {
 
       case "DA":
       case "DW":
-        if (stmt.operand) {
-          const value = this.evaluateExpression(stmt.operand);
-          // Track relocation if in REL mode and operand contains symbol
-          if (this.relocatableMode && this.expressionContainsSymbol(stmt.operand)) {
-            this.addRelocation(this.pc, 2);
+        // DW can have comma-separated values
+        {
+          const dwValues = this.extractNumericValues(stmt);
+          for (const value of dwValues) {
+            // Track relocation if in REL mode (assuming symbolic reference)
+            if (this.relocatableMode) {
+              this.addRelocation(this.pc, 2);
+            }
+            this.emitWord(value);
           }
-          this.emitWord(value);
+          // Fallback: if no values extracted (old single-value format), try evaluating operand
+          if (dwValues.length === 0 && stmt.operand) {
+            const value = this.evaluateExpression(stmt.operand);
+            // Track relocation if in REL mode and operand contains symbol
+            if (this.relocatableMode && this.expressionContainsSymbol(stmt.operand)) {
+              this.addRelocation(this.pc, 2);
+            }
+            this.emitWord(value);
+          }
         }
         break;
       
       case "DDB":
         // Double byte: high byte first, then low byte (reverse of DW)
-        if (stmt.operand) {
-          const value = this.evaluateExpression(stmt.operand);
-          // Track relocation if in REL mode and operand contains symbol
-          if (this.relocatableMode && this.expressionContainsSymbol(stmt.operand)) {
-            this.addRelocation(this.pc, 2);
+        // DDB can have comma-separated values
+        {
+          const ddbValues = this.extractNumericValues(stmt);
+          for (const value of ddbValues) {
+            // Track relocation if in REL mode (assuming symbolic reference)
+            if (this.relocatableMode) {
+              this.addRelocation(this.pc, 2);
+            }
+            this.emitByte((value >> 8) & 0xff); // High byte first
+            this.emitByte(value & 0xff); // Low byte second
           }
-          this.emitByte((value >> 8) & 0xff); // High byte first
-          this.emitByte(value & 0xff); // Low byte second
+          // Fallback: if no values extracted (old single-value format), try evaluating operand
+          if (ddbValues.length === 0 && stmt.operand) {
+            const value = this.evaluateExpression(stmt.operand);
+            // Track relocation if in REL mode and operand contains symbol
+            if (this.relocatableMode && this.expressionContainsSymbol(stmt.operand)) {
+              this.addRelocation(this.pc, 2);
+            }
+            this.emitByte((value >> 8) & 0xff); // High byte first
+            this.emitByte(value & 0xff); // Low byte second
+          }
         }
         break;
 
       case "DB":
       case "DFB":
-        if (stmt.operand) {
+        // DB can have comma-separated values
+        const dbValues = this.extractNumericValues(stmt);
+        for (const value of dbValues) {
+          this.emitByte(value);
+        }
+        // Fallback: if no values extracted (old single-value format), try evaluating operand
+        if (dbValues.length === 0 && stmt.operand) {
           const value = this.evaluateExpression(stmt.operand);
           this.emitByte(value);
         }
@@ -618,16 +662,7 @@ class Assembler {
     let addressing = stmt.addressing || "implied";
 
     // Branch instructions use immediate mode but with relative addressing
-    const isBranch = [
-      "BCC",
-      "BCS",
-      "BEQ",
-      "BMI",
-      "BNE",
-      "BPL",
-      "BVC",
-      "BVS",
-    ].includes(stmt.opcode!.toUpperCase());
+    const isBranch = Assembler.BRANCH_OPCODES.has(stmt.opcode!.toUpperCase());
 
     // For branch instructions, convert absolute/zeropage to immediate
     if (isBranch && (addressing === "absolute" || addressing === "zeropage")) {
@@ -729,16 +764,7 @@ class Assembler {
     const addressing = stmt.addressing || "implied";
 
     // Branch instructions are always 2 bytes (opcode + relative offset)
-    const isBranch = [
-      "BCC",
-      "BCS",
-      "BEQ",
-      "BMI",
-      "BNE",
-      "BPL",
-      "BVC",
-      "BVS",
-    ].includes(stmt.opcode!.toUpperCase());
+    const isBranch = Assembler.BRANCH_OPCODES.has(stmt.opcode!.toUpperCase());
     if (isBranch) {
       return 2;
     }
@@ -854,7 +880,7 @@ class Assembler {
   }
 
   private isConditionalDirective(directive: string): boolean {
-    return ["DO", "IF", "IFNE", "IFEQ", "IFGT", "IFGE", "IFLT", "IFLE", "ELSE", "FIN"].includes(directive);
+    return Assembler.CONDITIONAL_DIRECTIVES.has(directive);
   }
   
   private toSigned16(value: number): number {
@@ -1214,9 +1240,10 @@ class Assembler {
       }
     }
     
-    // Split by comma and add to target array
+    // Split by comma and add to target array (using Set for O(1) deduplication)
     if (symbolText) {
       const symbols = symbolText.split(',').map(s => s.trim()).filter(s => s.length > 0);
+      const existingSet = new Set(targetArray);
       for (const symbol of symbols) {
         // Remove quotes if present
         let cleanSymbol = symbol;
@@ -1224,8 +1251,9 @@ class Assembler {
             (cleanSymbol.startsWith("'") && cleanSymbol.endsWith("'"))) {
           cleanSymbol = cleanSymbol.slice(1, -1);
         }
-        if (!targetArray.includes(cleanSymbol)) {
+        if (!existingSet.has(cleanSymbol)) {
           targetArray.push(cleanSymbol);
+          existingSet.add(cleanSymbol);
         }
       }
     }
@@ -1247,6 +1275,66 @@ class Assembler {
         return true;
       case "binary":
         return this.expressionContainsSymbol(expr.left) || this.expressionContainsSymbol(expr.right);
+    }
+  }
+  
+  // Extract comma-separated numeric values from statement tokens
+  // Used for data directives like DB, DW, DDB that can have multiple values
+  private extractNumericValues(stmt: Statement): number[] {
+    const values: number[] = [];
+    
+    // Find all tokens after the directive and collect numbers/expressions
+    let foundDirective = false;
+    let currentExprTokens: any[] = [];
+    
+    for (const token of stmt.tokens) {
+      if (token.kind === "directive") {
+        foundDirective = true;
+        continue;
+      }
+      
+      if (!foundDirective) continue;
+      
+      // When we hit a comma or EOL/comment/EOF, evaluate accumulated tokens as an expression
+      if (token.kind === "comma" || token.kind === "eol" || token.kind === "comment" || token.kind === "eof") {
+        if (currentExprTokens.length > 0) {
+          // Parse the token lexeme to get the numeric value
+          const firstToken = currentExprTokens[0];
+          if (firstToken.kind === "number") {
+            values.push(this.parseNumberFromLexeme(firstToken.lexeme));
+          }
+          currentExprTokens = [];
+        }
+      } else {
+        currentExprTokens.push(token);
+      }
+    }
+    
+    // Don't forget the last expression if no trailing comma
+    if (currentExprTokens.length > 0) {
+      const firstToken = currentExprTokens[0];
+      if (firstToken.kind === "number") {
+        values.push(this.parseNumberFromLexeme(firstToken.lexeme));
+      }
+    }
+    
+    return values;
+  }
+  
+  // Parse a number from its lexeme (handles $hex, @octal, %binary, decimal)
+  private parseNumberFromLexeme(lexeme: string): number {
+    if (lexeme.startsWith("$")) {
+      return parseInt(lexeme.substring(1), 16);
+    } else if (lexeme.startsWith("0x") || lexeme.startsWith("0X")) {
+      return parseInt(lexeme.substring(2), 16);
+    } else if (lexeme.startsWith("@")) {
+      return parseInt(lexeme.substring(1), 8);
+    } else if (lexeme.startsWith("%")) {
+      return parseInt(lexeme.substring(1), 2);
+    } else if (lexeme.startsWith("0b") || lexeme.startsWith("0B")) {
+      return parseInt(lexeme.substring(2), 2);
+    } else {
+      return parseInt(lexeme, 10);
     }
   }
 }
