@@ -312,6 +312,11 @@ export class Parser {
       return parseInt(lexeme.substring(2), 16);
     }
 
+    // Octal: @xxxx
+    if (lexeme.startsWith("@")) {
+      return parseInt(lexeme.substring(1), 8);
+    }
+
     // Binary: %xxxxxxxx or 0bxxxxxxxx
     if (lexeme.startsWith("%")) {
       return parseInt(lexeme.substring(1), 2);
