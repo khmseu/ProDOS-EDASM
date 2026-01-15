@@ -145,6 +145,33 @@ VALUE   EQU $FF
 `,
     expected: [0xa9, 0xbb, 0x60], // LDA #$BB, RTS
   },
+  {
+    name: "MSB directive - default OFF (high bit clear)",
+    source: `
+        ORG $E000
+        ASC "A"
+`,
+    expected: [0x41], // 'A' without high bit (default is OFF)
+  },
+  {
+    name: "MSB directive - ON (high bit set)",
+    source: `
+        ORG $E100
+        MSB 1
+        ASC "A"
+`,
+    expected: [0xc1], // 'A' with high bit set (0x41 | 0x80 = 0xC1)
+  },
+  {
+    name: "MSB directive - toggle OFF/ON",
+    source: `
+        ORG $E200
+        ASC "A"
+        MSB 1
+        ASC "B"
+`,
+    expected: [0x41, 0xc2], // 'A' without high bit, 'B' with high bit
+  },
 ];
 
 console.log("Running EDASM assembler test suite...\n");

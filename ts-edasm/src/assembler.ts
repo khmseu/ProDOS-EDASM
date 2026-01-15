@@ -26,11 +26,17 @@ class Assembler {
   private errors: string[] = [];
   private conditionalStack: boolean[] = []; // Stack for tracking conditional assembly state
   private assemblyEnabled: boolean = true; // Whether we're currently assembling
+  private msbOn: boolean = false; // MSB setting for ASCII output (default OFF for compatibility)
 
   constructor(
     private readonly statements: Statement[],
     private readonly options: AssemblerOptions,
-  ) {}
+  ) {
+    // Initialize MSB from options if provided, default is OFF
+    if (options.msbDefaultOn !== undefined) {
+      this.msbOn = options.msbDefaultOn;
+    }
+  }
 
   assemble(): AssemblyArtifact {
     // Pass 1: Build symbol table
@@ -225,13 +231,13 @@ class Assembler {
 
       case "ASC":
         if (stmt.operand && stmt.operand.kind === "symbol") {
-          this.emitString(stmt.operand.name, false);
+          this.emitString(stmt.operand.name, false, this.msbOn);
         }
         break;
 
       case "DCI":
         if (stmt.operand && stmt.operand.kind === "symbol") {
-          this.emitString(stmt.operand.name, true);
+          this.emitString(stmt.operand.name, true, false);
         }
         break;
       
@@ -240,7 +246,20 @@ class Assembler {
         if (stmt.operand && stmt.operand.kind === "symbol") {
           const content = stmt.operand.name.substring(1, stmt.operand.name.length - 1);
           this.emitByte(content.length); // Length prefix
-          this.emitString(stmt.operand.name, false); // String bytes
+          this.emitString(stmt.operand.name, false, this.msbOn); // String bytes with MSB setting
+        }
+        break;
+      
+      case "MSB":
+        // MSB directive: control high bit for ASCII output
+        // MSB ON (or MSB with no operand) sets high bit
+        // MSB OFF clears high bit
+        if (stmt.operand) {
+          const value = this.evaluateExpression(stmt.operand);
+          this.msbOn = value !== 0;
+        } else {
+          // No operand means ON
+          this.msbOn = true;
         }
         break;
 
@@ -449,16 +468,24 @@ class Assembler {
     this.emitByte((value >> 8) & 0xff); // High byte
   }
 
-  private emitString(str: string, invertLast: boolean): void {
+  private emitString(str: string, invertLast: boolean, applyMSB: boolean = false): void {
     // Remove quotes
     const content = str.substring(1, str.length - 1);
 
     for (let i = 0; i < content.length; i++) {
       let byte = content.charCodeAt(i);
+      
+      // Apply MSB setting if requested (for ASC and STR directives)
+      if (applyMSB) {
+        byte |= 0x80;
+      }
+      
       // DCI: invert (set high bit) on last character
+      // Note: DCI always sets high bit on last char, regardless of MSB setting
       if (invertLast && i === content.length - 1) {
         byte |= 0x80;
       }
+      
       this.emitByte(byte);
     }
   }
