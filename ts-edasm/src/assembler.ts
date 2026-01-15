@@ -119,6 +119,12 @@ class Assembler {
   private listingEnabled: boolean = true; // Whether listing is enabled (LST ON/OFF)
   private currentLineNumber: number = 0; // Current source line number
   private repeatChar: string = "*"; // Character to use for REP directive
+  
+  // Relocatable output support
+  private relocatableMode: boolean = false; // REL directive sets this
+  private relocationDictionary: Array<{address: number; size: number}> = []; // RLD entries
+  private externalSymbols: string[] = []; // EXTRN directive populates this
+  private entryPoints: string[] = []; // ENTRY directive populates this
 
   constructor(
     private readonly statements: Statement[],
@@ -139,12 +145,22 @@ class Assembler {
 
     const listing = this.options.listing ? this.generateListing() : undefined;
 
-    return {
+    const result: AssemblyArtifact = {
       bytes: new Uint8Array(this.bytes),
       listing,
       symbols: this.symbols,
       errors: this.errors.length > 0 ? this.errors : undefined,
     };
+    
+    // Add relocatable output information if in REL mode
+    if (this.relocatableMode) {
+      result.relocatable = true;
+      result.rld = this.relocationDictionary;
+      result.externals = this.externalSymbols.length > 0 ? this.externalSymbols : undefined;
+      result.entries = this.entryPoints.length > 0 ? this.entryPoints : undefined;
+    }
+    
+    return result;
   }
 
   private passOne(): void {
@@ -237,6 +253,24 @@ class Assembler {
           this.symbols[stmt.label] = this.evaluateExpression(stmt.operand);
         }
         break;
+      
+      case "REL":
+        // Enable relocatable mode
+        this.relocatableMode = true;
+        break;
+      
+      case "EXTRN":
+      case "EXT":
+      case "EXTN":
+        // Parse external symbol names from operand
+        this.parseSymbolList(stmt.operand ?? null, this.externalSymbols, stmt);
+        break;
+      
+      case "ENTRY":
+      case "ENT":
+        // Parse entry point names from operand
+        this.parseSymbolList(stmt.operand ?? null, this.entryPoints, stmt);
+        break;
 
       case "DA":
       case "DW":
@@ -317,11 +351,31 @@ class Assembler {
       case "EQU":
         // Already handled in pass 1
         break;
+      
+      case "REL":
+        // Enable relocatable mode (already set in pass 1)
+        this.relocatableMode = true;
+        break;
+      
+      case "EXTRN":
+      case "EXT":
+      case "EXTN":
+        // External symbols already parsed in pass 1
+        break;
+      
+      case "ENTRY":
+      case "ENT":
+        // Entry points already parsed in pass 1
+        break;
 
       case "DA":
       case "DW":
         if (stmt.operand) {
           const value = this.evaluateExpression(stmt.operand);
+          // Track relocation if in REL mode and operand contains symbol
+          if (this.relocatableMode && this.expressionContainsSymbol(stmt.operand)) {
+            this.addRelocation(this.pc, 2);
+          }
           this.emitWord(value);
         }
         break;
@@ -330,6 +384,10 @@ class Assembler {
         // Double byte: high byte first, then low byte (reverse of DW)
         if (stmt.operand) {
           const value = this.evaluateExpression(stmt.operand);
+          // Track relocation if in REL mode and operand contains symbol
+          if (this.relocatableMode && this.expressionContainsSymbol(stmt.operand)) {
+            this.addRelocation(this.pc, 2);
+          }
           this.emitByte((value >> 8) & 0xff); // High byte first
           this.emitByte(value & 0xff); // Low byte second
         }
@@ -540,6 +598,10 @@ class Assembler {
           case "absolute-x":
           case "absolute-y":
           case "jmp-indirect":
+            // Track relocation if in REL mode and operand contains symbol
+            if (this.relocatableMode && stmt.operand && this.expressionContainsSymbol(stmt.operand)) {
+              this.addRelocation(this.pc, 2);
+            }
             this.emitWord(value);
             break;
           
@@ -1015,5 +1077,68 @@ class Assembler {
     }
 
     return listing;
+  }
+  
+  // Parse comma-separated symbol list from an expression or statement tokens
+  // Used for EXTRN and ENTRY directives
+  private parseSymbolList(expr: Expression | null, targetArray: string[], stmt: Statement): void {
+    // Collect all label tokens from the statement
+    // The parser might not parse comma-separated symbols correctly, so we extract them from tokens
+    let symbolText = "";
+    
+    // Check if we have a non-empty symbol from expression
+    if (expr && expr.kind === "symbol" && expr.name.length > 0) {
+      symbolText = expr.name;
+    } else {
+      // Extract symbols from tokens directly
+      // Find all label tokens after the directive
+      let foundDirective = false;
+      for (const token of stmt.tokens) {
+        if (token.kind === "directive") {
+          foundDirective = true;
+          continue;
+        }
+        if (foundDirective && (token.kind === "label" || token.kind === "string")) {
+          symbolText += token.lexeme;
+        } else if (foundDirective && token.kind === "comma") {
+          symbolText += ",";
+        }
+      }
+    }
+    
+    // Split by comma and add to target array
+    if (symbolText) {
+      const symbols = symbolText.split(',').map(s => s.trim()).filter(s => s.length > 0);
+      for (const symbol of symbols) {
+        // Remove quotes if present
+        let cleanSymbol = symbol;
+        if ((cleanSymbol.startsWith('"') && cleanSymbol.endsWith('"')) ||
+            (cleanSymbol.startsWith("'") && cleanSymbol.endsWith("'"))) {
+          cleanSymbol = cleanSymbol.slice(1, -1);
+        }
+        if (!targetArray.includes(cleanSymbol)) {
+          targetArray.push(cleanSymbol);
+        }
+      }
+    }
+  }
+  
+  // Add a relocation entry to the RLD
+  private addRelocation(address: number, size: number): void {
+    this.relocationDictionary.push({ address, size });
+  }
+  
+  // Check if an expression contains symbol references (needs relocation)
+  private expressionContainsSymbol(expr: Expression): boolean {
+    switch (expr.kind) {
+      case "literal":
+        return false;
+      case "symbol":
+        // Check if it's an external symbol or a defined symbol (not external symbols don't need relocation in RLD)
+        // For now, return true if it's not a literal
+        return true;
+      case "binary":
+        return this.expressionContainsSymbol(expr.left) || this.expressionContainsSymbol(expr.right);
+    }
   }
 }
