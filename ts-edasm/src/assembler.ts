@@ -292,31 +292,13 @@ class Assembler {
         break;
 
       case "HEX":
-        if (stmt.operand) {
-          // HEX directive can have operand as literal or symbol
-          let hexString: string;
-          if (stmt.operand.kind === "symbol") {
-            hexString = stmt.operand.name;
-          } else if (stmt.operand.kind === "literal") {
-            // For HEX directive, find the original token to get the raw string
-            // This preserves the hex digits instead of converting from decimal
-            const operandToken = stmt.tokens.find(t => t.kind === "number");
-            if (operandToken) {
-              hexString = operandToken.lexeme;
-            } else {
-              // Fallback: convert literal back to hex string
-              hexString = stmt.operand.value.toString(16);
-              // Pad to even length
-              if (hexString.length % 2 !== 0) {
-                hexString = "0" + hexString;
-              }
-            }
-          } else {
-            break;
+        {
+          const hexString = this.extractHexString(stmt);
+          if (hexString) {
+            // Hex bytes (2 chars per byte)
+            const hex = hexString.replace(/\s/g, "");
+            this.pc += Math.floor(hex.length / 2);
           }
-          // Hex bytes (2 chars per byte)
-          const hex = hexString.replace(/\s/g, "");
-          this.pc += Math.floor(hex.length / 2);
         }
         break;
     }
@@ -418,29 +400,11 @@ class Assembler {
         break;
 
       case "HEX":
-        if (stmt.operand) {
-          // HEX directive can have operand as literal or symbol
-          let hexString: string;
-          if (stmt.operand.kind === "symbol") {
-            hexString = stmt.operand.name;
-          } else if (stmt.operand.kind === "literal") {
-            // For HEX directive, find the original token to get the raw string
-            // This preserves the hex digits instead of converting from decimal
-            const operandToken = stmt.tokens.find(t => t.kind === "number");
-            if (operandToken) {
-              hexString = operandToken.lexeme;
-            } else {
-              // Fallback: convert literal back to hex string
-              hexString = stmt.operand.value.toString(16);
-              // Pad to even length
-              if (hexString.length % 2 !== 0) {
-                hexString = "0" + hexString;
-              }
-            }
-          } else {
-            break;
+        {
+          const hexString = this.extractHexString(stmt);
+          if (hexString) {
+            this.emitHexString(hexString);
           }
-          this.emitHexString(hexString);
         }
         break;
       
@@ -468,21 +432,7 @@ class Assembler {
       
       case "CHR":
         // CHR: Set repeat character for REP directive
-        if (stmt.operand && stmt.operand.kind === "symbol") {
-          // Extract the character from the symbol (should be a quoted character)
-          let charStr = stmt.operand.name;
-          if ((charStr.startsWith('"') && charStr.endsWith('"')) ||
-              (charStr.startsWith("'") && charStr.endsWith("'"))) {
-            charStr = charStr.slice(1, -1);
-          }
-          if (charStr.length > 0) {
-            this.repeatChar = charStr[0];
-          }
-        } else if (stmt.operand && stmt.operand.kind === "literal") {
-          // ASCII value of character
-          const asciiValue = this.evaluateExpression(stmt.operand);
-          this.repeatChar = String.fromCharCode(asciiValue);
-        }
+        this.processChrDirective(stmt);
         break;
       
       case "SBTL":
@@ -834,7 +784,13 @@ class Assembler {
     if (stmt.operand) {
       if (stmt.operand.kind === "symbol") {
         const operandName = stmt.operand.name.toUpperCase();
-        return operandName === "ON";
+        if (operandName === "ON") {
+          return true;
+        } else if (operandName === "OFF") {
+          return false;
+        }
+        // Any other symbol defaults to OFF
+        return false;
       } else {
         // Numeric value: 0 = OFF, non-zero = ON
         const value = this.evaluateExpression(stmt.operand);
@@ -844,6 +800,53 @@ class Assembler {
       // No operand means ON
       return true;
     }
+  }
+
+  private processChrDirective(stmt: Statement): void {
+    // Helper method to process CHR directive and update repeatChar
+    if (stmt.operand && stmt.operand.kind === "symbol") {
+      // Extract the character from the symbol (should be a quoted character)
+      let charStr = stmt.operand.name;
+      if ((charStr.startsWith('"') && charStr.endsWith('"')) ||
+          (charStr.startsWith("'") && charStr.endsWith("'"))) {
+        charStr = charStr.slice(1, -1);
+      }
+      if (charStr.length > 0) {
+        this.repeatChar = charStr[0];
+      }
+    } else if (stmt.operand && stmt.operand.kind === "literal") {
+      // ASCII value of character
+      const asciiValue = this.evaluateExpression(stmt.operand);
+      this.repeatChar = String.fromCharCode(asciiValue);
+    }
+  }
+
+  private extractHexString(stmt: Statement): string | null {
+    // Helper method to extract hex string from HEX directive operand
+    if (!stmt.operand) {
+      return null;
+    }
+
+    if (stmt.operand.kind === "symbol") {
+      return stmt.operand.name;
+    } else if (stmt.operand.kind === "literal") {
+      // For HEX directive, find the original token to get the raw string
+      // This preserves the hex digits instead of converting from decimal
+      const operandToken = stmt.tokens.find(t => t.kind === "number");
+      if (operandToken) {
+        return operandToken.lexeme;
+      } else {
+        // Fallback: convert literal back to hex string
+        let hexString = stmt.operand.value.toString(16);
+        // Pad to even length
+        if (hexString.length % 2 !== 0) {
+          hexString = "0" + hexString;
+        }
+        return hexString;
+      }
+    }
+
+    return null;
   }
 
   private addListingLine(
@@ -913,19 +916,7 @@ class Assembler {
         
         // Handle CHR directive - set repeat character
         if (directive === "CHR") {
-          if (stmt.operand && stmt.operand.kind === "symbol") {
-            let charStr = stmt.operand.name;
-            if ((charStr.startsWith('"') && charStr.endsWith('"')) ||
-                (charStr.startsWith("'") && charStr.endsWith("'"))) {
-              charStr = charStr.slice(1, -1);
-            }
-            if (charStr.length > 0) {
-              this.repeatChar = charStr[0];
-            }
-          } else if (stmt.operand && stmt.operand.kind === "literal") {
-            const asciiValue = this.evaluateExpression(stmt.operand);
-            this.repeatChar = String.fromCharCode(asciiValue);
-          }
+          this.processChrDirective(stmt);
           continue; // CHR doesn't produce listing output
         }
         
